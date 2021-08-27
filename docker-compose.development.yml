@@ -1,16 +1,16 @@
 version: "3"
 
 services:
-  # client:
-  #   build:
-  #     context: ./client
-  #     args:
-  #       REACT_APP_WEB_API_SERVER: http://localhost:23360/v1.0
-  #   ports:
-  #     - "23361:3000"
-  #   volumes:
-  #     - "./client:/app"
-  #   command: yarn start
+  client:
+    build:
+      context: ./client
+      args:
+        REACT_APP_WEB_API_SERVER: http://localhost:23360/v1.0
+    ports:
+      - "23361:3000"
+    volumes:
+      - "./client:/app"
+    command: yarn start
 
   api:
     build: ./server

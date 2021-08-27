@@ -1,4 +1,4 @@
-from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.contrib.fixers import ProxyFix
 from flask import Flask
 from flask_sockets import Sockets
 # from pymongo import MongoClient

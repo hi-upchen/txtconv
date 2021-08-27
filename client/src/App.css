@@ -57,4 +57,13 @@ body {
   font-size: 14px;
   text-align: center;
   background-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.footer a {
+  color: #888;
+}
+.footer > span {
+  margin-right: 0.5rem;
 }
