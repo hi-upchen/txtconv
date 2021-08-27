@@ -8,7 +8,6 @@ import datetime
 import logging
 import chardet
 from urllib.parse import quote
-from werkzeug.utils import secure_filename
 from opencc import OpenCC
 
 logging.basicConfig(level=logging.INFO)
