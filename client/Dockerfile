@@ -1,14 +1,17 @@
 FROM node:18-alpine
+
 ARG REACT_APP_WEB_API_SERVER
 ARG REACT_APP_WS_API_SERVER
 
 WORKDIR /app
-RUN yarn global add create-react-app serve
+RUN npm install -g create-react-app serve
 
 COPY package.json .
-RUN yarn install
+RUN npm install
 
 ENV REACT_APP_WEB_API_SERVER "$REACT_APP_WEB_API_SERVER"
 ENV REACT_APP_WS_API_SERVER "$REACT_APP_WS_API_SERVER"
+
 COPY . .
-RUN yarn run build
+
+RUN npm run build
