@@ -24,7 +24,7 @@ for filename in os.listdir(RUNTIME_PATH):
 		mtimestamp = os.path.getmtime(path)
 		sec2now = now-mtimestamp
 
-		if sec2now>86400*2: # more than 7 days
+		if sec2now>86400*1: # more than 7 days
 			print("DELETE %s %s" % (datetime.datetime.fromtimestamp(mtimestamp), filename))
 			os.remove(path)
 
