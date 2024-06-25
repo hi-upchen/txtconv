@@ -55,11 +55,6 @@ class App extends Component {
             </article>
           </div>
         }
-        <div className="test-div">
-          {fileQueue.queue.map((fileHanlder, i) => {
-            return (<div>{i}</div>)
-          })}
-        </div>
       </div>
     );
   }
