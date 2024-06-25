@@ -21,7 +21,7 @@ const FileRow = observer(class extends Component {
   render () {
     const {store} = this.props
 
-    return (<div className="file-row file-status">
+    return (<div className="file-row file-status animate__animated animate__fadeIn">
             <div className="is-flex">
               <div className="main-infos">
                 <h3 className="is-size-5">

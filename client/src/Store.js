@@ -1,4 +1,4 @@
-import {extendObservable} from 'mobx'
+import { extendObservable } from 'mobx'
 
 class FileHandler {
 	constructor(file) {
@@ -25,7 +25,7 @@ class FileHandler {
 	 *
 	 * @return {}
 	 */
-	upload () {
+	upload() {
 		// prepare form data
 		var formData = new FormData();
 		formData.append('file', this.file);
@@ -33,7 +33,7 @@ class FileHandler {
 
 		// create the ajax
 		var xhr = new XMLHttpRequest();
-		xhr.open('POST', window.CONFS.apiServer+'/api/conv');
+		xhr.open('POST', window.CONFS.apiServer + '/api/conv');
 
 		xhr.upload.onprogress = (event) => {
 			this.isUploading = true;
@@ -52,7 +52,7 @@ class FileHandler {
 			this.isProcessing = false;
 			this.isUploading = false;
 
-			if (xhr.status===200) {
+			if (xhr.status === 200) {
 				this.notifyServerShouldConvert()
 			} else {
 				this.errMessage = 'Something wrong';
@@ -63,7 +63,7 @@ class FileHandler {
 			this.isProcessing = false;
 			this.isUploading = false;
 
-			switch(xhr.status) {
+			switch (xhr.status) {
 				case 404:
 					this.errMessage = '404 File not found';
 					break;
@@ -85,25 +85,25 @@ class FileHandler {
 	 * Connect to the websocket.
 	 * @return {Promise}
 	 */
-	ensureWebSocket () {
+	ensureWebSocket() {
 		return new Promise((resolve, reject) => {
 			let ws = this.websocket
 
-			if (ws && ws.readyState===ws.OPEN) {
+			if (ws && ws.readyState === ws.OPEN) {
 				resolve()
-			} else if (ws && ws.readyState===ws.CONNECTING) {
+			} else if (ws && ws.readyState === ws.CONNECTING) {
 				// wait a while
 				// do nothing, wait for onopen callback
 			} else {
 				console.log("Create a new socket")
 				// create the websocket
-				ws = this.websocket = new WebSocket(window.CONFS.wsServer+"/opencc")
+				ws = this.websocket = new WebSocket(window.CONFS.wsServer + "/opencc")
 				ws.binaryType = "arraybuffer"
 
-				ws.onopen = (evt) => {console.log("ws open", evt); resolve()}
-				ws.onclose = (evt) => {this.onWsClose(evt)}
-				ws.onmessage = (evt) => {this.onWsMessage(evt)}
-				ws.onerror = (evt) => {this.onWsError(evt)}
+				ws.onopen = (evt) => { console.log("ws open", evt); resolve() }
+				ws.onclose = (evt) => { this.onWsClose(evt) }
+				ws.onmessage = (evt) => { this.onWsMessage(evt) }
+				ws.onerror = (evt) => { this.onWsError(evt) }
 			}
 		})
 	}
@@ -114,7 +114,7 @@ class FileHandler {
 	 *
 	 * @return {Promise}
 	 */
-	notifyServerShouldConvert () {
+	notifyServerShouldConvert() {
 		var file = this.file
 
 		return this.ensureWebSocket()
@@ -128,48 +128,57 @@ class FileHandler {
 			})
 	}
 
-	onWsOpen (evt) {
+	onWsOpen(evt) {
 		console.log('onWsOpen', evt)
 	}
-	onWsClose (evt) {
+	onWsClose(evt) {
 		console.log('onWsClose', evt)
 	}
-	onWsMessage (evt) {
+	onWsMessage(evt) {
 		console.log('onWsMessage', evt)
 
 		let evtdata = JSON.parse(evt.data)
 
-		if (evtdata.action==="START_CONVERTING") {
+		if (evtdata.action === "START_CONVERTING") {
 			this.isProcessing = true
 		}
-		else if (evtdata.action==="FINISHED_CONVERT") {
+		else if (evtdata.action === "FINISHED_CONVERT") {
 			// find out that file
 			this.isProcessing = false
-			this.downloadLink = window.CONFS.apiServer+evtdata.downloadLink.replace('/v1.0', '')
-		} else if (evtdata.action==="CONVERT_PROGRESS") {
+			this.downloadLink = window.CONFS.apiServer + evtdata.downloadLink.replace('/v1.0', '')
+		} else if (evtdata.action === "CONVERT_PROGRESS") {
 			this.convertProgress = evtdata.percent
 		}
 
 		return false
 	}
-	onWsError (evt) {
+	onWsError(evt) {
 		console.log('onWsError', evt)
-		this.errMessage = ""+evt
+		this.errMessage = "" + evt
 	}
 }
 
 class FileQueue {
-	constructor () {
+	constructor() {
 		extendObservable(this, {
 			queue: []
 		})
 	}
 
-	addFile (file) {
+	addFile(file) {
 		let handler = new FileHandler(file);
 		handler.upload()
 		this.queue.push(handler)
 	}
+
+	/**
+	 * Returns the length of the queue.
+	 *
+	 * @returns {number} The length of the queue.
+	 */
+	getQueueLength() {
+		return this.queue.length;
+	}
 }
 
-export {FileQueue, FileHandler}
+export { FileQueue, FileHandler }

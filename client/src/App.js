@@ -1,4 +1,6 @@
 import React, { Component } from 'react';
+import {observer} from "mobx-react";
+import 'animate.css';
 import './App.css';
 
 import Uploader from './uploader'
@@ -37,9 +39,30 @@ class App extends Component {
           </div>
           <FileQueue fileQueue={fileQueue}></FileQueue>
         </div>
+
+        {fileQueue.getQueueLength()>0 &&
+          <div className="container animate__animated animate__pulse animate__delay-2s">
+            <article className="message is-warning">
+              <div className="message-header" style={{padding: "0.5rem 2rem"}}>
+                <p>捐款支持這個小工具</p>
+              </div>
+              <div className="message-body" style={{padding: "0.5rem 2rem"}}>
+                <p style={{"marginBottom":"0.25rem"}}>感謝您使用這簡轉繁小工具！如果您覺得它有幫助，請考慮捐款支持。您的捐款將幫助我繼續改進和維護這個小工具。</p>
+                <div className="buttons" style={{"marginBottom":"0.25rem"}}>
+                  <a href="https://upchen.gumroad.com/l/txtconv?utm_source=txtconv&utm_medium=website&utm_content=under-files" className="button is-primary is-light" target="_blank">捐款支持</a>
+                </div>
+              </div>
+            </article>
+          </div>
+        }
+        <div className="test-div">
+          {fileQueue.queue.map((fileHanlder, i) => {
+            return (<div>{i}</div>)
+          })}
+        </div>
       </div>
     );
   }
 }
 
-export default App;
+export default observer(App);
