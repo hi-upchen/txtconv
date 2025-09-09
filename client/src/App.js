@@ -60,15 +60,36 @@ class App extends Component {
 
         {/* Temporary survey message */}
         {fileQueue.getQueueLength()>0 &&
-          <div className="container animate__animated animate__pulse animate__delay-2s">
-            <article className="message is-warning">
-              <div className="message-header" style={{padding: "0.5rem 2rem"}}>
-                <p>幫助我們做得更好</p>
+          <div className="container animate__animated animate__fadeInUp animate__delay-2s">
+            <article className="message is-info survey-message">
+              <div className="message-header" style={{padding: "0.5rem 2rem", background: "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)"}}>
+                <p>
+                  <span style={{marginRight: "0.5rem", fontSize: "1.2rem"}}>📋</span>
+                  幫助我們做得更好
+                </p>
               </div>
-              <div className="message-body" style={{padding: "0.5rem 2rem"}}>
-                <p style={{"marginBottom":"0.25rem"}}>感謝您使用繁簡轉換工具！為了提供更好的服務，我想了解您的使用需求。填寫 2 分鐘問卷，幫助我們改善功能！</p>
+              <div className="message-body" style={{padding: "1rem 2rem", background: "linear-gradient(to bottom, #fff5f5 0%, #ffffff 100%)"}}>
+                <p style={{"marginBottom":"0.75rem", color: "#4a5568", lineHeight: "1.6"}}>
+                  <span style={{fontWeight: "500"}}>感謝您使用繁簡轉換工具！</span>
+                  <br/>
+                  為了提供更好的服務，我們想了解您的使用需求。
+                  <span style={{color: "#ee5a24", fontWeight: "500"}}> 只需 2 分鐘</span>，幫助我們改善功能！
+                </p>
                 <div className="buttons" style={{"marginBottom":"0.25rem"}}>
-                  <a href="https://www.surveycake.com/s/w8oKr" className="button is-primary is-light" target="_blank">填寫問卷</a>
+                  <a href="https://www.surveycake.com/s/w8oKr" 
+                     className="button is-primary survey-button" 
+                     target="_blank"
+                     style={{
+                       background: "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)",
+                       border: "none",
+                       color: "white",
+                       fontWeight: "500",
+                       padding: "0.75rem 1.5rem",
+                       transition: "all 0.3s ease",
+                       boxShadow: "0 4px 6px rgba(238, 90, 36, 0.25)"
+                     }}>
+                    填寫問卷 →
+                  </a>
                 </div>
               </div>
             </article>
