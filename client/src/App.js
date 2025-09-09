@@ -65,15 +65,15 @@ class App extends Component {
               <div className="message-header" style={{padding: "0.5rem 2rem", background: "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)"}}>
                 <p>
                   <span style={{marginRight: "0.5rem", fontSize: "1.2rem"}}>📋</span>
-                  幫助我們做得更好
+                  幫助我做得更好
                 </p>
               </div>
               <div className="message-body" style={{padding: "1rem 2rem", background: "linear-gradient(to bottom, #fff5f5 0%, #ffffff 100%)"}}>
                 <p style={{"marginBottom":"0.75rem", color: "#4a5568", lineHeight: "1.6"}}>
                   <span style={{fontWeight: "500"}}>感謝您使用繁簡轉換工具！</span>
                   <br/>
-                  為了提供更好的服務，我們想了解您的使用需求。
-                  <span style={{color: "#ee5a24", fontWeight: "500"}}> 只需 2 分鐘</span>，幫助我們改善功能！
+                  為了提供更好的服務，我想了解您的使用需求。
+                  <span style={{color: "#ee5a24", fontWeight: "500"}}> 只需 2 分鐘</span>，幫助我改善功能！
                 </p>
                 <div className="buttons" style={{"marginBottom":"0.25rem"}}>
                   <a href="https://www.surveycake.com/s/w8oKr" 
