@@ -40,6 +40,7 @@ class App extends Component {
           <FileQueue fileQueue={fileQueue}></FileQueue>
         </div>
 
+        {/* Original donation message - temporarily hidden
         {fileQueue.getQueueLength()>0 &&
           <div className="container animate__animated animate__pulse animate__delay-2s">
             <article className="message is-warning">
@@ -50,6 +51,24 @@ class App extends Component {
                 <p style={{"marginBottom":"0.25rem"}}>感謝您使用這簡轉繁小工具！如果您覺得它有幫助，請考慮捐款支持。您的捐款將幫助我繼續改進和維護這個小工具。</p>
                 <div className="buttons" style={{"marginBottom":"0.25rem"}}>
                   <a href="https://upchen.gumroad.com/l/txtconv?utm_source=txtconv&utm_medium=website&utm_content=under-files" className="button is-primary is-light" target="_blank">捐款支持</a>
+                </div>
+              </div>
+            </article>
+          </div>
+        }
+        */}
+
+        {/* Temporary survey message */}
+        {fileQueue.getQueueLength()>0 &&
+          <div className="container animate__animated animate__pulse animate__delay-2s">
+            <article className="message is-warning">
+              <div className="message-header" style={{padding: "0.5rem 2rem"}}>
+                <p>幫助我們做得更好</p>
+              </div>
+              <div className="message-body" style={{padding: "0.5rem 2rem"}}>
+                <p style={{"marginBottom":"0.25rem"}}>感謝您使用繁簡轉換工具！為了提供更好的服務，我想了解您的使用需求。填寫 2 分鐘問卷，幫助我們改善功能！</p>
+                <div className="buttons" style={{"marginBottom":"0.25rem"}}>
+                  <a href="https://www.surveycake.com/s/w8oKr" className="button is-primary is-light" target="_blank">填寫問卷</a>
                 </div>
               </div>
             </article>
