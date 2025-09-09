@@ -94,3 +94,34 @@ body {
 	}
 	
 }
+
+/* Survey message styles */
+.survey-message {
+	animation: gentlePulse 3s ease-in-out infinite;
+	box-shadow: 0 4px 15px rgba(238, 90, 36, 0.15);
+	border: none;
+	overflow: hidden;
+
+	.message-header p {
+		color: white;
+		font-weight: 500;
+		display: flex;
+		align-items: center;
+	}
+}
+
+@keyframes gentlePulse {
+	0%, 100% {
+		transform: scale(1);
+		box-shadow: 0 4px 15px rgba(238, 90, 36, 0.15);
+	}
+	50% {
+		transform: scale(1.02);
+		box-shadow: 0 6px 20px rgba(238, 90, 36, 0.25);
+	}
+}
+
+.survey-button:hover {
+	transform: translateY(-2px) scale(1.05) !important;
+	box-shadow: 0 6px 12px rgba(238, 90, 36, 0.35) !important;
+}
