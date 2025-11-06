@@ -30,7 +30,7 @@ export async function readFileWithEncoding(file: File): Promise<string> {
   try {
     // Simple approach: use built-in text() method
     return await file.text();
-  } catch (error) {
+  } catch {
     // Fallback: use arrayBuffer with encoding detection
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -48,7 +48,7 @@ export async function readFileWithEncoding(file: File): Promise<string> {
     try {
       const decoder = new TextDecoder(encoding);
       return decoder.decode(arrayBuffer);
-    } catch (decodeError) {
+    } catch {
       // Final fallback to UTF-8
       const decoder = new TextDecoder('utf-8');
       return decoder.decode(arrayBuffer);

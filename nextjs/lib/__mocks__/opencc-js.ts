@@ -1,5 +1,5 @@
 // Mock for opencc-js in tests
-export const ConverterFactory = jest.fn((fromDict: any, toDict: any) => {
+export const ConverterFactory = jest.fn((_fromDict: any, _toDict: any) => {
   // Simple mock converter that replaces some known characters for testing
   return (text: string) => {
     return text
