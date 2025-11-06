@@ -16,18 +16,35 @@ body {
   margin-bottom: 1rem;
 }
 
-.App .dropzone-panel .dropzone-nornaml {
+.App .dropzone-panel .dropzone-normal {
   border: 5px dashed #00d1b2;
   padding: 1rem 2rem;
   font-size: 1.5rem;
   color: #00d1b2;
   cursor: pointer;
   border-radius: 4px;
+  background-color: #fff;
+  transition: all 0.2s ease-in-out;
+}
+
+.App .dropzone-panel .dropzone-normal:hover {
+  border-color: #00d1b2;
+  background-color: #f0fffe;
+  transform: scale(1.01);
 }
 
 .App .dropzone-panel .dropzone-active {
+  border: 5px dashed #23d160;
+  padding: 1rem 2rem;
+  font-size: 1.5rem;
   border-color: #23d160;
   color: #23d160;
+  cursor: pointer;
+  border-radius: 4px;
+  background-color: #f0ffed;
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(35, 209, 96, 0.2);
+  transition: all 0.2s ease-in-out;
 }
 
 .App .file-status {

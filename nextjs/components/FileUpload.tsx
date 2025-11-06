@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 
 export interface UploadFile {
@@ -33,7 +33,7 @@ function humanFileSize(bytes: number, si: boolean = true): string {
   return bytes.toFixed(1) + ' ' + units[u];
 }
 
-function FileRow({ store, onConvert }: { store: UploadFile; onConvert: () => void }) {
+function FileRow({ store }: { store: UploadFile }) {
   const downloadConverted = () => {
     if (store.convertedContent && store.filename) {
       const blob = new Blob([store.convertedContent], { type: 'text/plain; charset=utf-8' });
@@ -95,6 +95,31 @@ function FileRow({ store, onConvert }: { store: UploadFile; onConvert: () => voi
 
 export default function FileUpload() {
   const [files, setFiles] = useState<UploadFile[]>([]);
+  const [downloadQueue, setDownloadQueue] = useState<Array<{ content: string; fileName: string }>>([]);
+  const isProcessingQueue = useRef(false);
+
+  // Process download queue one at a time
+  useEffect(() => {
+    if (downloadQueue.length > 0 && !isProcessingQueue.current) {
+      isProcessingQueue.current = true;
+      const { content, fileName } = downloadQueue[0];
+
+      // Download the file
+      const blob = new Blob([content], { type: 'text/plain; charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      // Remove from queue and wait before processing next
+      setTimeout(() => {
+        setDownloadQueue((prev) => prev.slice(1));
+        isProcessingQueue.current = false;
+      }, 500); // 500ms delay between downloads
+    }
+  }, [downloadQueue]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles: UploadFile[] = acceptedFiles.map((file) => ({
@@ -111,9 +136,11 @@ export default function FileUpload() {
     }));
     setFiles((prev) => [...prev, ...newFiles]);
 
-    // Auto-convert each file
-    newFiles.forEach((uploadFile) => {
-      convertFile(uploadFile);
+    // Auto-convert each file with staggered start
+    newFiles.forEach((uploadFile, index) => {
+      setTimeout(() => {
+        convertFile(uploadFile);
+      }, index * 100); // Stagger by 100ms to prevent all starting at exact same time
     });
   }, []);
 
@@ -159,61 +186,70 @@ export default function FileUpload() {
       if (!reader) throw new Error('No response stream');
 
       const decoder = new TextDecoder();
+      let buffer = ''; // Buffer for incomplete SSE messages
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        // Append chunk to buffer
+        buffer += decoder.decode(value, { stream: true });
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6));
+        // Split by SSE message delimiter (\n\n)
+        const messages = buffer.split('\n\n');
 
-            if (data.type === 'progress') {
-              setFiles((prev) =>
-                prev.map((f) => (f.id === id ? { ...f, convertProgress: data.percent } : f))
-              );
-            } else if (data.type === 'complete') {
-              setFiles((prev) =>
-                prev.map((f) =>
-                  f.id === id
-                    ? {
-                        ...f,
-                        isProcessing: false,
-                        convertProgress: 1.0,
-                        downloadLink: 'blob://converted',
-                        filename: data.fileName,
-                        convertedContent: data.content,
-                      }
-                    : f
-                )
-              );
+        // Keep last incomplete message in buffer
+        buffer = messages.pop() || '';
 
-              // Auto-download the converted file
-              if (data.content && data.fileName) {
-                const blob = new Blob([data.content], { type: 'text/plain; charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = data.fileName;
-                a.click();
-                URL.revokeObjectURL(url);
+        // Process complete messages
+        for (const message of messages) {
+          const lines = message.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.type === 'progress') {
+                  setFiles((prev) =>
+                    prev.map((f) => (f.id === id ? { ...f, convertProgress: data.percent } : f))
+                  );
+                } else if (data.type === 'complete') {
+                  setFiles((prev) =>
+                    prev.map((f) =>
+                      f.id === id
+                        ? {
+                            ...f,
+                            isProcessing: false,
+                            convertProgress: 1.0,
+                            downloadLink: 'blob://converted',
+                            filename: data.fileName,
+                            convertedContent: data.content,
+                          }
+                        : f
+                    )
+                  );
+
+                  // Add to download queue instead of downloading immediately
+                  if (data.content && data.fileName) {
+                    setDownloadQueue((prev) => [...prev, { content: data.content, fileName: data.fileName }]);
+                  }
+                } else if (data.type === 'error') {
+                  setFiles((prev) =>
+                    prev.map((f) =>
+                      f.id === id
+                        ? {
+                            ...f,
+                            isUploading: false,
+                            isProcessing: false,
+                            errMessage: data.message,
+                          }
+                        : f
+                    )
+                  );
+                }
+              } catch (parseError) {
+                console.error('Failed to parse SSE message:', parseError, 'Line:', line);
               }
-            } else if (data.type === 'error') {
-              setFiles((prev) =>
-                prev.map((f) =>
-                  f.id === id
-                    ? {
-                        ...f,
-                        isUploading: false,
-                        isProcessing: false,
-                        errMessage: data.message,
-                      }
-                    : f
-                )
-              );
             }
           }
         }
@@ -239,23 +275,23 @@ export default function FileUpload() {
       <div className="dropzone">
         <div
           {...getRootProps()}
-          className={isDragActive ? 'dropzone-active' : 'dropzone-nornaml'}
+          className={isDragActive ? 'dropzone-active' : 'dropzone-normal'}
         >
           <input {...getInputProps()} />
-          <p>上傳檔案，支援 txt, csv, srt, ...</p>
+          <p style={{ pointerEvents: 'none' }}>上傳檔案，支援 txt, csv, srt, ...</p>
         </div>
       </div>
 
       {files.length > 0 && (
         <div className="App">
           {files.map((fileHandler, i) => (
-            <FileRow store={fileHandler} key={'FileRow' + i} onConvert={() => convertFile(fileHandler)} />
+            <FileRow store={fileHandler} key={'FileRow' + i} />
           ))}
         </div>
       )}
 
-      {/* Survey message */}
-      {files.length > 0 && (
+      {/* Survey message - Hidden for now */}
+      {/* {files.length > 0 && (
         <div className="container animate__animated animate__fadeInUp animate__delay-2s" style={{ marginTop: '2rem' }}>
           <article className="message is-info survey-message">
             <div
@@ -305,7 +341,7 @@ export default function FileUpload() {
             </div>
           </article>
         </div>
-      )}
+      )} */}
     </>
   );
 }
