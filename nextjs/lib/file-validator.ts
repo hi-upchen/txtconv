@@ -11,6 +11,9 @@ export const BLOCKED_EXTENSIONS = [
   '.mov', '.mp4', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v',
   // Office files
   '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf',
+  '.pages', '.numbers', '.key', // Mac iWork
+  // Ebook files
+  '.epub', '.mobi', '.azw', '.azw3',
   // Other binary files
   '.exe', '.zip', '.rar', '.7z', '.tar', '.gz',
   '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg',

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { convertFile } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
 import { validateFile } from '@/lib/file-validator';
+import { archiveOriginalFile } from '@/lib/archive';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 60s for Pro plan, 10s for Hobby
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest) {
           controller.close();
           return;
         }
+
+        // Archive original file to Vercel Blob
+        await archiveOriginalFile(file!);
 
         // Send start event
         controller.enqueue(

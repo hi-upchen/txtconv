@@ -155,11 +155,6 @@ export default function FileUpload() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {
-      'text/plain': ['.txt'],
-      'application/x-subrip': ['.srt'],
-      'text/csv': ['.csv'],
-    },
     multiple: true,
   });
 
