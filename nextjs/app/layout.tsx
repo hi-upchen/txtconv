@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import 'bulma/css/bulma.min.css';
+import 'animate.css';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 import "./globals.css";
 
 export const metadata: Metadata = {

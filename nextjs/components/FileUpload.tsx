@@ -6,30 +6,123 @@ import { useDropzone } from 'react-dropzone';
 export interface UploadFile {
   id: string;
   file: File;
-  progress: number;
-  status: 'pending' | 'converting' | 'complete' | 'error';
+  uploadProgress: number;
+  convertProgress: number;
+  isUploading: boolean | null;
+  isProcessing: boolean | null;
+  downloadLink: string | null;
+  filename: string;
+  size: number;
+  errMessage: string | null;
   convertedContent?: string;
-  fileName?: string;
-  error?: string;
+}
+
+function humanFileSize(bytes: number, si: boolean = true): string {
+  const thresh = si ? 1000 : 1024;
+  if (Math.abs(bytes) < thresh) {
+    return bytes + ' B';
+  }
+  const units = si
+    ? ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+    : ['KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
+  let u = -1;
+  do {
+    bytes /= thresh;
+    ++u;
+  } while (Math.abs(bytes) >= thresh && u < units.length - 1);
+  return bytes.toFixed(1) + ' ' + units[u];
+}
+
+function FileRow({ store, onConvert }: { store: UploadFile; onConvert: () => void }) {
+  const downloadConverted = () => {
+    if (store.convertedContent && store.filename) {
+      const blob = new Blob([store.convertedContent], { type: 'text/plain; charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = store.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  return (
+    <div className="file-row file-status animate__animated animate__fadeIn">
+      <div className="is-flex">
+        <div className="main-infos">
+          <h3 className="is-size-5">
+            {store.downloadLink ? (
+              <a onClick={downloadConverted} style={{ cursor: 'pointer' }}>
+                {store.filename}
+              </a>
+            ) : (
+              store.filename
+            )}
+          </h3>
+          <div>{humanFileSize(store.size, true)}</div>
+          {store.errMessage && <div className="has-text-danger">{store.errMessage}</div>}
+        </div>
+        <div className="is-flex controls">
+          {store.isUploading !== false && (
+            <div className="control-msg-progress">
+              <progress className="progress" value={store.uploadProgress} max="100"></progress>
+              <div className="status-msg">上傳中</div>
+            </div>
+          )}
+          {store.isUploading === false && store.isProcessing === false && store.downloadLink === null && (
+            <div className="control-msg-progress">
+              <span>
+                <i className="fa fa-spinner fa-spin"></i>
+              </span>
+            </div>
+          )}
+          {store.isProcessing !== false && (
+            <div className="control-msg-progress">
+              <progress className="progress" value={store.convertProgress} max="1"></progress>
+              <div className="status-msg">轉換中</div>
+            </div>
+          )}
+          {store.downloadLink && (
+            <a onClick={downloadConverted} style={{ cursor: 'pointer' }}>
+              <i className="fa fa-download"></i>
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function FileUpload() {
   const [files, setFiles] = useState<UploadFile[]>([]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles = acceptedFiles.map((file) => ({
+    const newFiles: UploadFile[] = acceptedFiles.map((file) => ({
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       file,
-      progress: 0,
-      status: 'pending' as const,
+      uploadProgress: 0,
+      convertProgress: 0,
+      isUploading: null,
+      isProcessing: null,
+      downloadLink: null,
+      filename: file.name,
+      size: file.size,
+      errMessage: null,
     }));
     setFiles((prev) => [...prev, ...newFiles]);
+
+    // Auto-convert each file
+    newFiles.forEach((uploadFile) => {
+      convertFile(uploadFile);
+    });
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'text/plain': ['.txt'],
+      'application/x-subrip': ['.srt'],
+      'text/csv': ['.csv'],
     },
     multiple: true,
   });
@@ -38,7 +131,9 @@ export default function FileUpload() {
     const { id, file } = uploadFile;
 
     setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, status: 'converting', progress: 0 } : f))
+      prev.map((f) =>
+        f.id === id ? { ...f, isUploading: true, uploadProgress: 0, isProcessing: false } : f
+      )
     );
 
     const formData = new FormData();
@@ -54,6 +149,11 @@ export default function FileUpload() {
       if (!response.ok) {
         throw new Error('Conversion request failed');
       }
+
+      // Mark upload complete, start processing
+      setFiles((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, isUploading: false, isProcessing: true } : f))
+      );
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response stream');
@@ -73,7 +173,7 @@ export default function FileUpload() {
 
             if (data.type === 'progress') {
               setFiles((prev) =>
-                prev.map((f) => (f.id === id ? { ...f, progress: data.percent * 100 } : f))
+                prev.map((f) => (f.id === id ? { ...f, convertProgress: data.percent } : f))
               );
             } else if (data.type === 'complete') {
               setFiles((prev) =>
@@ -81,10 +181,11 @@ export default function FileUpload() {
                   f.id === id
                     ? {
                         ...f,
-                        status: 'complete',
-                        progress: 100,
+                        isProcessing: false,
+                        convertProgress: 1.0,
+                        downloadLink: 'blob://converted',
+                        filename: data.fileName,
                         convertedContent: data.content,
-                        fileName: data.fileName,
                       }
                     : f
                 )
@@ -102,7 +203,16 @@ export default function FileUpload() {
               }
             } else if (data.type === 'error') {
               setFiles((prev) =>
-                prev.map((f) => (f.id === id ? { ...f, status: 'error', error: data.message } : f))
+                prev.map((f) =>
+                  f.id === id
+                    ? {
+                        ...f,
+                        isUploading: false,
+                        isProcessing: false,
+                        errMessage: data.message,
+                      }
+                    : f
+                )
               );
             }
           }
@@ -112,133 +222,90 @@ export default function FileUpload() {
       setFiles((prev) =>
         prev.map((f) =>
           f.id === id
-            ? { ...f, status: 'error', error: error instanceof Error ? error.message : 'Conversion failed' }
+            ? {
+                ...f,
+                isUploading: false,
+                isProcessing: false,
+                errMessage: error instanceof Error ? error.message : 'Conversion failed',
+              }
             : f
         )
       );
     }
   };
 
-  const convertAll = () => {
-    files.filter((f) => f.status === 'pending').forEach((f) => convertFile(f));
-  };
-
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Dropzone */}
-      <div
-        {...getRootProps()}
-        className={`
-          border-2 border-dashed rounded-lg p-12 text-center cursor-pointer
-          transition-colors duration-200
-          ${
-            isDragActive
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 hover:border-gray-400'
-          }
-        `}
-      >
-        <input {...getInputProps()} />
-        <div className="space-y-2">
-          <div className="text-5xl">📄</div>
-          <p className="text-lg font-medium">
-            {isDragActive ? '放開以上傳檔案' : '拖曳 .txt 檔案到此處，或點擊選擇'}
-          </p>
-          <p className="text-sm text-gray-500">支援多個檔案，單檔最大 4MB</p>
+    <>
+      <div className="dropzone">
+        <div
+          {...getRootProps()}
+          className={isDragActive ? 'dropzone-active' : 'dropzone-nornaml'}
+        >
+          <input {...getInputProps()} />
+          <p>上傳檔案，支援 txt, csv, srt, ...</p>
         </div>
       </div>
 
-      {/* File List */}
       {files.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">檔案列表 ({files.length})</h3>
-            {files.some((f) => f.status === 'pending') && (
-              <button
-                onClick={convertAll}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                轉換全部
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            {files.map((file) => (
-              <FileItem key={file.id} uploadFile={file} onConvert={() => convertFile(file)} />
-            ))}
-          </div>
+        <div className="App">
+          {files.map((fileHandler, i) => (
+            <FileRow store={fileHandler} key={'FileRow' + i} onConvert={() => convertFile(fileHandler)} />
+          ))}
         </div>
       )}
-    </div>
-  );
-}
 
-function FileItem({
-  uploadFile,
-  onConvert,
-}: {
-  uploadFile: UploadFile;
-  onConvert: () => void;
-}) {
-  const { file, progress, status, error, convertedContent, fileName } = uploadFile;
-
-  const downloadConverted = () => {
-    if (convertedContent && fileName) {
-      const blob = new Blob([convertedContent], { type: 'text/plain; charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-  };
-
-  return (
-    <div className="border rounded-lg p-4 space-y-2">
-      <div className="flex justify-between items-start">
-        <div className="flex-1">
-          <p className="font-medium">{file.name}</p>
-          <p className="text-sm text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
-        </div>
-
-        {status === 'pending' && (
-          <button
-            onClick={onConvert}
-            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            轉換
-          </button>
-        )}
-
-        {status === 'complete' && convertedContent && (
-          <button
-            onClick={downloadConverted}
-            className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-          >
-            再次下載
-          </button>
-        )}
-      </div>
-
-      {/* Progress Bar */}
-      {status === 'converting' && (
-        <div className="space-y-1">
-          <div className="w-full bg-gray-200 rounded-full h-2">
+      {/* Survey message */}
+      {files.length > 0 && (
+        <div className="container animate__animated animate__fadeInUp animate__delay-2s" style={{ marginTop: '2rem' }}>
+          <article className="message is-info survey-message">
             <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-xs text-gray-600">{Math.round(progress)}%</p>
+              className="message-header"
+              style={{
+                padding: '0.5rem 2rem',
+                background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)',
+              }}
+            >
+              <p>
+                <span style={{ marginRight: '0.5rem', fontSize: '1.2rem' }}>📋</span>
+                幫助我做得更好
+              </p>
+            </div>
+            <div
+              className="message-body"
+              style={{
+                padding: '1rem 2rem',
+                background: 'linear-gradient(to bottom, #fff5f5 0%, #ffffff 100%)',
+              }}
+            >
+              <p style={{ marginBottom: '0.75rem', color: '#4a5568', lineHeight: '1.6' }}>
+                <span style={{ fontWeight: '500' }}>感謝您使用繁簡轉換工具！</span>
+                <br />
+                為了提供更好的服務，我想了解您的使用需求。
+                <span style={{ color: '#ee5a24', fontWeight: '500' }}> 只需 2 分鐘</span>，幫助我改善功能！
+              </p>
+              <div className="buttons" style={{ marginBottom: '0.25rem' }}>
+                <a
+                  href="https://www.surveycake.com/s/w8oKr"
+                  className="button is-primary survey-button"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)',
+                    border: 'none',
+                    color: 'white',
+                    fontWeight: '500',
+                    padding: '0.75rem 1.5rem',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 4px 6px rgba(238, 90, 36, 0.25)',
+                  }}
+                >
+                  填寫問卷 →
+                </a>
+              </div>
+            </div>
+          </article>
         </div>
       )}
-
-      {/* Status Messages */}
-      {status === 'complete' && <p className="text-sm text-green-600">✓ 轉換完成</p>}
-
-      {status === 'error' && <p className="text-sm text-red-600">✗ {error || '轉換失敗'}</p>}
-    </div>
+    </>
   );
 }
