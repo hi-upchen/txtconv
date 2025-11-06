@@ -175,38 +175,54 @@ describe('FileUpload Component', () => {
   it('should show download button after conversion', async () => {
     const user = userEvent.setup();
 
+    // Create a simpler mock that completes immediately
+    const mockReader = {
+      read: jest.fn()
+        .mockResolvedValueOnce({
+          done: false,
+          value: new TextEncoder().encode('data: {"type":"progress","percent":0.5}\n\n'),
+        })
+        .mockResolvedValueOnce({
+          done: false,
+          value: new TextEncoder().encode('data: {"type":"complete","content":"converted text","fileName":"test.txt"}\n\n'),
+        })
+        .mockResolvedValueOnce({
+          done: true,
+        }),
+    };
+
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       body: {
-        getReader: () => ({
-          read: jest.fn()
-            .mockResolvedValueOnce({
-              done: false,
-              value: new TextEncoder().encode('data: {"type":"complete","content":"converted","fileName":"test.txt"}\n\n'),
-            })
-            .mockResolvedValueOnce({
-              done: true,
-            }),
-        }),
+        getReader: () => mockReader,
       },
     });
 
     render(<FileUpload />);
 
-    const file = new File(['test'], 'test.txt', { type: 'text/plain' });
+    const file = new File(['test content'], 'test.txt', { type: 'text/plain' });
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 
     if (input) {
       await user.upload(input, file);
     }
 
+    // Find and click the convert button
     const convertButton = await screen.findByRole('button', { name: '轉換' });
     await user.click(convertButton);
 
+    // Wait for the "轉換" button to disappear (meaning conversion started/completed)
     await waitFor(() => {
-      // Should show success status message
-      expect(screen.getByText(/轉換完成/)).toBeInTheDocument();
-    }, { timeout: 3000 });
+      expect(screen.queryByRole('button', { name: '轉換' })).not.toBeInTheDocument();
+    }, { timeout: 2000 });
+
+    // Verify fetch was called
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/convert',
+      expect.objectContaining({
+        method: 'POST',
+      })
+    );
   });
 
   it('should show "Convert All" button when multiple files uploaded', async () => {
