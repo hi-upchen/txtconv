@@ -12,15 +12,15 @@ export default function Home() {
             <h2 className="subtitle has-text-left has-text-dark mt-2">
               線上免費將剪映 Capbut 字幕、小說、電子書、CSV 等文字檔從簡體轉換成繁體中文，支援批次轉換。
             </h2>
-            <p className="has-text-dark">
-              支援檔案格式為：
+            <div className="has-text-dark">
+              <p>支援檔案格式為：</p>
               <ul>
                 <li>.txt 純文字小說檔案</li>
                 <li>.srt 電影字幕檔案</li>
                 <li>.csv 資料格式</li>
                 <li>.xml 資料格式</li>
               </ul>
-            </p>
+            </div>
           </div>
         </div>
       </section>
