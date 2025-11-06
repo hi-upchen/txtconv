@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { validateFile } from '@/lib/file-validator';
 
 export interface UploadFile {
   id: string;
@@ -122,25 +123,33 @@ export default function FileUpload() {
   }, [downloadQueue]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles: UploadFile[] = acceptedFiles.map((file) => ({
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      file,
-      uploadProgress: 0,
-      convertProgress: 0,
-      isUploading: null,
-      isProcessing: null,
-      downloadLink: null,
-      filename: file.name,
-      size: file.size,
-      errMessage: null,
-    }));
+    const newFiles: UploadFile[] = acceptedFiles.map((file) => {
+      // Validate file using shared validator
+      const validation = validateFile(file);
+
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        file,
+        uploadProgress: 0,
+        convertProgress: 0,
+        isUploading: validation.valid ? null : false,
+        isProcessing: false,
+        downloadLink: null,
+        filename: file.name,
+        size: file.size,
+        errMessage: validation.valid ? null : validation.error || 'Invalid file',
+      };
+    });
+
     setFiles((prev) => [...prev, ...newFiles]);
 
-    // Auto-convert each file with staggered start
+    // Auto-convert only valid files
     newFiles.forEach((uploadFile, index) => {
-      setTimeout(() => {
-        convertFile(uploadFile);
-      }, index * 100); // Stagger by 100ms to prevent all starting at exact same time
+      if (!uploadFile.errMessage) {
+        setTimeout(() => {
+          convertFile(uploadFile);
+        }, index * 100); // Stagger by 100ms
+      }
     });
   }, []);
 

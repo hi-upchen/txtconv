@@ -1,11 +1,10 @@
 import { NextRequest } from 'next/server';
 import { convertFile } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
+import { validateFile } from '@/lib/file-validator';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 60s for Pro plan, 10s for Hobby
-
-const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
 
 /**
  * POST /api/convert
@@ -21,29 +20,15 @@ export async function POST(request: NextRequest) {
         const file = formData.get('file') as File | null;
         const fileId = formData.get('fileId') as string;
 
-        // Validate file exists
-        if (!file) {
+        // Validate file
+        const validation = validateFile(file!);
+        if (!validation.valid) {
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({
                 type: 'error',
                 fileId,
-                message: 'No file provided',
-              })}\n\n`
-            )
-          );
-          controller.close();
-          return;
-        }
-
-        // Validate file size
-        if (file.size > MAX_FILE_SIZE) {
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({
-                type: 'error',
-                fileId,
-                message: `File size exceeds 4MB limit (${(file.size / 1024 / 1024).toFixed(2)}MB)`,
+                message: validation.error,
               })}\n\n`
             )
           );
@@ -64,7 +49,7 @@ export async function POST(request: NextRequest) {
         );
 
         // Read file with encoding detection
-        const fileContent = await readFileWithEncoding(file);
+        const fileContent = await readFileWithEncoding(file!);
 
         // Send reading complete event
         controller.enqueue(
@@ -93,9 +78,8 @@ export async function POST(request: NextRequest) {
         });
 
         // Generate output filename
-        const originalName = file.name.replace(/\.txt$/, '');
         const timestamp = new Date().toISOString().split('T')[0];
-        const fileName = `${timestamp} ${originalName}.txt`;
+        const fileName = `${timestamp} ${file!.name}`;
 
         // Send completion event with converted content
         controller.enqueue(
