@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.1.0",
-    "@vercel/blob": "^0.23.0",
     "animate.css": "^4.1.1",
     "bulma": "^1.0.4",
     "jschardet": "^3.1.4",
