@@ -136,9 +136,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Generate output filename with sanitization
-        const timestamp = new Date().toISOString().split('T')[0];
-        const sanitizedName = sanitizeFilename(file!.name);
-        const fileName = `${timestamp} ${sanitizedName}`;
+        const fileName = sanitizeFilename(file!.name);
 
         // Send completion event with converted content
         controller.enqueue(
