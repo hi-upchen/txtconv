@@ -4,7 +4,6 @@ import { readFileWithEncoding } from '@/lib/encoding';
 import { validateFile } from '@/lib/file-validator';
 import { archiveOriginalFile } from '@/lib/archive';
 import { sanitizeFilename } from '@/lib/filename-sanitizer';
-import jschardet from 'jschardet';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 60s for Pro plan, 10s for Hobby
@@ -84,30 +83,8 @@ export async function POST(request: NextRequest) {
         );
 
         // Read file with encoding detection
-        // For blob-fetched files, use the ArrayBuffer directly to ensure proper encoding detection
-        let fileContent: string;
-        if (blobArrayBuffer) {
-          // Use encoding detection for blob files to avoid UTF-8 corruption
-          const buffer = Buffer.from(blobArrayBuffer);
-          const sampleBuffer = buffer.slice(0, Math.min(500, buffer.length));
-
-          // Detect encoding using jschardet
-          const detected = jschardet.detect(sampleBuffer.toString('binary'));
-          const encoding = detected.encoding || 'utf-8';
-
-          // Decode with detected encoding
-          try {
-            const decoder = new TextDecoder(encoding);
-            fileContent = decoder.decode(blobArrayBuffer);
-          } catch {
-            // Fallback to UTF-8 if detected encoding fails
-            const decoder = new TextDecoder('utf-8');
-            fileContent = decoder.decode(blobArrayBuffer);
-          }
-        } else {
-          // For directly uploaded files, use existing encoding detection
-          fileContent = await readFileWithEncoding(file!);
-        }
+        // Use unified encoding detection for all files (both blob-fetched and direct uploads)
+        const fileContent = await readFileWithEncoding(file!);
 
         // Send reading complete event
         controller.enqueue(
