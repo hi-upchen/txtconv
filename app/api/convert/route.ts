@@ -3,6 +3,7 @@ import { convertFile } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
 import { validateFile } from '@/lib/file-validator';
 import { archiveOriginalFile } from '@/lib/archive';
+import { sanitizeFilename } from '@/lib/filename-sanitizer';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 60s for Pro plan, 10s for Hobby
@@ -81,9 +82,10 @@ export async function POST(request: NextRequest) {
           );
         });
 
-        // Generate output filename
+        // Generate output filename with sanitization
         const timestamp = new Date().toISOString().split('T')[0];
-        const fileName = `${timestamp} ${file!.name}`;
+        const sanitizedName = sanitizeFilename(file!.name);
+        const fileName = `${timestamp} ${sanitizedName}`;
 
         // Send completion event with converted content
         controller.enqueue(
