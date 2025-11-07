@@ -72,7 +72,7 @@ export function sanitizeFilename(filename: string): string {
  */
 function truncateToBytes(str: string, maxBytes: number): string {
   const encoder = new TextEncoder();
-  let bytes = encoder.encode(str);
+  const bytes = encoder.encode(str);
 
   if (bytes.length <= maxBytes) {
     return str;

@@ -67,7 +67,7 @@ describe('OpenCC Helper', () => {
       for (let i = 1; i < progressUpdates.length; i++) {
         expect(progressUpdates[i]).toBeGreaterThanOrEqual(progressUpdates[i - 1]);
       }
-    });
+    }, 10000); // Increase timeout to 10s to account for development delay
 
     it('should work without progress callback', async () => {
       const fileContent = '简体中文\n测试内容';

@@ -13,6 +13,9 @@ import { convertFile } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
 import { archiveOriginalFile } from '@/lib/archive';
 
+// Mock global fetch
+global.fetch = jest.fn();
+
 describe('POST /api/convert', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -196,5 +199,175 @@ describe('POST /api/convert', () => {
     const errorEvent = events.find(e => e.type === 'error');
     expect(errorEvent).toBeDefined();
     expect(errorEvent.message).toContain('File is empty');
+  });
+
+  describe('Blob URL support', () => {
+    const createBlobFormData = (blobUrl: string, fileName: string = 'test.txt') => {
+      const formData = new FormData();
+      formData.append('blobUrl', blobUrl);
+      formData.append('fileName', fileName);
+      formData.append('fileId', 'test-file-id');
+      return formData;
+    };
+
+    it('should accept blobUrl instead of file', async () => {
+      const blobUrl = 'https://blob.vercel-storage.com/test-file.txt';
+      const fileContent = '简体中文';
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode(fileContent).buffer,
+      });
+
+      (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
+      (convertFile as jest.Mock).mockResolvedValue('簡體中文');
+
+      const formData = createBlobFormData(blobUrl, 'test.txt');
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      expect(global.fetch).toHaveBeenCalledWith(blobUrl);
+      const completeEvent = events.find(e => e.type === 'complete');
+      expect(completeEvent).toBeDefined();
+      expect(completeEvent.content).toBe('簡體中文');
+    });
+
+    it('should handle blob fetch errors', async () => {
+      const blobUrl = 'https://blob.vercel-storage.com/test-file.txt';
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      });
+
+      const formData = createBlobFormData(blobUrl, 'test.txt');
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const errorEvent = events.find(e => e.type === 'error');
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent.message).toContain('Failed to fetch file from blob');
+    });
+
+    it('should handle network errors when fetching blob', async () => {
+      const blobUrl = 'https://blob.vercel-storage.com/test-file.txt';
+
+      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+      const formData = createBlobFormData(blobUrl, 'test.txt');
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const errorEvent = events.find(e => e.type === 'error');
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent.message).toContain('Network error');
+    });
+
+    it('should validate file size from blob', async () => {
+      const blobUrl = 'https://blob.vercel-storage.com/large-file.txt';
+      // Create 26MB content
+      const largeContent = 'x'.repeat(26 * 1024 * 1024);
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode(largeContent).buffer,
+      });
+
+      const formData = createBlobFormData(blobUrl, 'large-file.txt');
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const errorEvent = events.find(e => e.type === 'error');
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent.message).toContain('25MB');
+    }, 10000);
+
+    it('should preserve fileName from blobUrl request', async () => {
+      const blobUrl = 'https://blob.vercel-storage.com/test-file.txt';
+      const fileContent = '简体中文';
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode(fileContent).buffer,
+      });
+
+      (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
+      (convertFile as jest.Mock).mockResolvedValue('簡體中文');
+
+      const formData = createBlobFormData(blobUrl, 'my-custom-file.txt');
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const completeEvent = events.find(e => e.type === 'complete');
+      expect(completeEvent).toBeDefined();
+      expect(completeEvent.fileName).toContain('my-custom-file.txt');
+    });
+
+    it('should not call archiveOriginalFile when using blobUrl', async () => {
+      const blobUrl = 'https://blob.vercel-storage.com/test-file.txt';
+      const fileContent = '简体中文';
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode(fileContent).buffer,
+      });
+
+      (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
+      (convertFile as jest.Mock).mockResolvedValue('簡體中文');
+
+      const formData = createBlobFormData(blobUrl, 'test.txt');
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      await POST(request);
+
+      // Should not archive when file is already in blob
+      expect(archiveOriginalFile).not.toHaveBeenCalled();
+    });
+
+    it('should reject request without blobUrl or file', async () => {
+      const formData = new FormData();
+      formData.append('fileId', 'test-file-id');
+
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const errorEvent = events.find(e => e.type === 'error');
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent.message).toContain('No file provided');
+    });
   });
 });

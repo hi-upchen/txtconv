@@ -2,6 +2,12 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FileUpload from '@/components/FileUpload';
+import { upload } from '@vercel/blob/client';
+
+// Mock Vercel Blob client
+jest.mock('@vercel/blob/client', () => ({
+  upload: jest.fn(),
+}));
 
 // Mock fetch for API calls
 global.fetch = jest.fn();
@@ -25,6 +31,7 @@ describe('FileUpload Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock).mockClear();
+    (upload as jest.Mock).mockClear();
     mockClick.mockClear();
   });
 
@@ -36,6 +43,19 @@ describe('FileUpload Component', () => {
 
   it('should accept file drop and auto-convert', async () => {
     const user = userEvent.setup();
+
+    // Mock blob upload
+    (upload as jest.Mock).mockImplementation(async (fileName, file, options) => {
+      // Simulate progress callback
+      if (options?.onUploadProgress) {
+        options.onUploadProgress({ percentage: 50 });
+        options.onUploadProgress({ percentage: 100 });
+      }
+      return {
+        url: 'https://blob.vercel-storage.com/test-file.txt',
+        pathname: 'test-file-abc123.txt',
+      };
+    });
 
     // Mock successful conversion
     (global.fetch as jest.Mock).mockResolvedValue({
@@ -72,7 +92,12 @@ describe('FileUpload Component', () => {
       expect(screen.getByText('test.txt')).toBeInTheDocument();
     });
 
-    // Should auto-convert and call API
+    // Should call upload to Vercel Blob
+    await waitFor(() => {
+      expect(upload).toHaveBeenCalled();
+    });
+
+    // Should call convert API with blobUrl
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         '/api/convert',
@@ -85,6 +110,12 @@ describe('FileUpload Component', () => {
 
   it('should accept multiple files', async () => {
     const user = userEvent.setup();
+
+    // Mock blob upload
+    (upload as jest.Mock).mockResolvedValue({
+      url: 'https://blob.vercel-storage.com/file.txt',
+      pathname: 'file-abc123.txt',
+    });
 
     // Mock conversions
     (global.fetch as jest.Mock).mockResolvedValue({
@@ -123,6 +154,12 @@ describe('FileUpload Component', () => {
   it('should show file size in human readable format', async () => {
     const user = userEvent.setup();
 
+    // Mock blob upload
+    (upload as jest.Mock).mockResolvedValue({
+      url: 'https://blob.vercel-storage.com/file.txt',
+      pathname: 'file-abc123.txt',
+    });
+
     // Mock conversion
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
@@ -150,6 +187,12 @@ describe('FileUpload Component', () => {
 
   it('should show progress during conversion', async () => {
     const user = userEvent.setup();
+
+    // Mock blob upload
+    (upload as jest.Mock).mockResolvedValue({
+      url: 'https://blob.vercel-storage.com/file.txt',
+      pathname: 'file-abc123.txt',
+    });
 
     let resolveRead: any;
     const readPromise = new Promise((resolve) => {
@@ -186,6 +229,12 @@ describe('FileUpload Component', () => {
   it('should show download link after conversion', async () => {
     const user = userEvent.setup();
 
+    // Mock blob upload
+    (upload as jest.Mock).mockResolvedValue({
+      url: 'https://blob.vercel-storage.com/file.txt',
+      pathname: 'file-abc123.txt',
+    });
+
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       body: {
@@ -220,6 +269,12 @@ describe('FileUpload Component', () => {
 
   it('should show error message on conversion failure', async () => {
     const user = userEvent.setup();
+
+    // Mock blob upload
+    (upload as jest.Mock).mockResolvedValue({
+      url: 'https://blob.vercel-storage.com/file.txt',
+      pathname: 'file-abc123.txt',
+    });
 
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,

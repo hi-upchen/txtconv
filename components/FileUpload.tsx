@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { upload } from '@vercel/blob/client';
 import { validateFile } from '@/lib/file-validator';
 
 export interface UploadFile {
@@ -161,14 +162,49 @@ export default function FileUpload() {
   const convertFile = async (uploadFile: UploadFile) => {
     const { id, file } = uploadFile;
 
+    // STEP 1: Upload to Vercel Blob with progress
     setFiles((prev) =>
       prev.map((f) =>
         f.id === id ? { ...f, isUploading: true, uploadProgress: 0, isProcessing: false } : f
       )
     );
 
+    let blobUrl: string;
+    try {
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        onUploadProgress: ({ percentage }) => {
+          setFiles((prev) =>
+            prev.map((f) => (f.id === id ? { ...f, uploadProgress: percentage } : f))
+          );
+        },
+      });
+      blobUrl = blob.url;
+    } catch (error) {
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === id
+            ? {
+                ...f,
+                isUploading: false,
+                isProcessing: false,
+                errMessage: error instanceof Error ? error.message : 'Upload failed',
+              }
+            : f
+        )
+      );
+      return;
+    }
+
+    // STEP 2: Request conversion via SSE (pass blobUrl)
+    setFiles((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, isUploading: false, isProcessing: true } : f))
+    );
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('blobUrl', blobUrl);
+    formData.append('fileName', file.name);
     formData.append('fileId', id);
 
     try {
@@ -181,11 +217,6 @@ export default function FileUpload() {
         throw new Error('Conversion request failed');
       }
 
-      // Mark upload complete, start processing
-      setFiles((prev) =>
-        prev.map((f) => (f.id === id ? { ...f, isUploading: false, isProcessing: true } : f))
-      );
-
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response stream');
 
@@ -194,6 +225,7 @@ export default function FileUpload() {
 
       while (true) {
         const { done, value } = await reader.read();
+
         if (done) break;
 
         // Append chunk to buffer

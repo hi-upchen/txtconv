@@ -29,6 +29,11 @@ export async function convertText(text: string): Promise<string> {
 }
 
 /**
+ * Sleep utility for development testing
+ */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
  * Convert file content line by line with progress callback
  * @param fileContent - File content as string
  * @param onProgress - Optional progress callback (0.0 to 1.0)
@@ -52,6 +57,9 @@ export async function convertFile(
   // Report progress every 1% (or at least every 100 lines)
   const progressInterval = Math.max(1, Math.ceil(totalLines / 100));
 
+  // Development mode: Add artificial delay to see progress bar (configurable via env)
+  const DELAY_MS = parseInt(process.env.CONVERSION_PROGRESS_DELAY_MS || '0', 10);
+
   for (let i = 0; i < totalLines; i++) {
     convertedLines.push(converter(lines[i]));
 
@@ -59,6 +67,11 @@ export async function convertFile(
     if (onProgress && (i % progressInterval === 0 || i === totalLines - 1)) {
       const percent = (i + 1) / totalLines;
       onProgress(percent);
+
+      // Add delay in development to make progress visible
+      if (DELAY_MS > 0) {
+        await sleep(DELAY_MS);
+      }
     }
   }
 
