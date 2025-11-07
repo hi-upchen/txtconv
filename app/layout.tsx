@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GoogleAnalytics } from '@next/third-parties/google';
 import 'bulma/css/bulma.min.css';
 import 'animate.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="zh-TW">
       <body>{children}</body>
+      <GoogleAnalytics gaId="G-0LMDG27L64" />
     </html>
   );
 }
