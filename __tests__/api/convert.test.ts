@@ -9,7 +9,7 @@ jest.mock('@/lib/opencc');
 jest.mock('@/lib/encoding');
 jest.mock('@/lib/archive');
 
-import { convertFile } from '@/lib/opencc';
+import { convertFile, convertText } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
 import { archiveOriginalFile } from '@/lib/archive';
 
@@ -20,6 +20,8 @@ describe('POST /api/convert', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (archiveOriginalFile as jest.Mock).mockResolvedValue(undefined);
+    // Default: convertText returns input as-is (for English text)
+    (convertText as jest.Mock).mockImplementation(async (text: string) => text);
   });
 
   const createFormData = (content: string, filename: string = 'test.txt') => {
@@ -368,6 +370,136 @@ describe('POST /api/convert', () => {
       const errorEvent = events.find(e => e.type === 'error');
       expect(errorEvent).toBeDefined();
       expect(errorEvent.message).toContain('No file provided');
+    });
+  });
+
+  describe('Filename translation', () => {
+    it('should translate simplified Chinese filename to traditional', async () => {
+      const fileContent = '简体中文内容';
+      const file = new File([fileContent], '我的简体文档.txt', { type: 'text/plain' });
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('fileId', 'test-file-id');
+
+      (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
+      (convertFile as jest.Mock).mockResolvedValue('簡體中文內容');
+      // Mock convertText to translate the filename
+      (convertText as jest.Mock).mockResolvedValue('我的簡體文檔');
+
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const completeEvent = events.find(e => e.type === 'complete');
+      expect(completeEvent).toBeDefined();
+      // Filename should be translated: 我的简体文档.txt → 我的簡體文檔.txt
+      expect(completeEvent.fileName).toBe('我的簡體文檔.txt');
+    });
+
+    it('should preserve file extension during translation', async () => {
+      const fileContent = '测试';
+      const file = new File([fileContent], '简体文件名.csv', { type: 'text/csv' });
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('fileId', 'test-file-id');
+
+      (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
+      (convertFile as jest.Mock).mockResolvedValue('測試');
+      (convertText as jest.Mock).mockResolvedValue('簡體文件名');
+
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const completeEvent = events.find(e => e.type === 'complete');
+      expect(completeEvent).toBeDefined();
+      expect(completeEvent.fileName).toBe('簡體文件名.csv');
+    });
+
+    it('should handle English filenames without translation', async () => {
+      const fileContent = 'English content';
+      const file = new File([fileContent], 'english-file.txt', { type: 'text/plain' });
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('fileId', 'test-file-id');
+
+      (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
+      (convertFile as jest.Mock).mockResolvedValue('English content');
+
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const completeEvent = events.find(e => e.type === 'complete');
+      expect(completeEvent).toBeDefined();
+      expect(completeEvent.fileName).toBe('english-file.txt');
+    });
+
+    it('should handle filenames without extension', async () => {
+      const fileContent = '简体';
+      const file = new File([fileContent], '简体文件', { type: 'text/plain' });
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('fileId', 'test-file-id');
+
+      (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
+      (convertFile as jest.Mock).mockResolvedValue('簡體');
+      (convertText as jest.Mock).mockResolvedValue('簡體文件');
+
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const completeEvent = events.find(e => e.type === 'complete');
+      expect(completeEvent).toBeDefined();
+      expect(completeEvent.fileName).toBe('簡體文件');
+    });
+
+    it('should sanitize translated filename', async () => {
+      const fileContent = '内容';
+      // Filename with potentially dangerous characters
+      const file = new File([fileContent], '我的<文档>.txt', { type: 'text/plain' });
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('fileId', 'test-file-id');
+
+      (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
+      (convertFile as jest.Mock).mockResolvedValue('內容');
+      (convertText as jest.Mock).mockResolvedValue('我的<文檔>');
+
+      const request = new NextRequest('http://localhost:3000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const response = await POST(request);
+      const events = await parseSSEStream(response);
+
+      const completeEvent = events.find(e => e.type === 'complete');
+      expect(completeEvent).toBeDefined();
+      // < and > should be removed by sanitizer
+      expect(completeEvent.fileName).toBe('我的文檔.txt');
     });
   });
 });

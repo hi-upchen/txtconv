@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { convertFile } from '@/lib/opencc';
+import { convertFile, convertText } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
 import { validateFile } from '@/lib/file-validator';
 import { archiveOriginalFile } from '@/lib/archive';
@@ -112,8 +112,18 @@ export async function POST(request: NextRequest) {
           );
         });
 
-        // Generate output filename with sanitization
-        const fileName = sanitizeFilename(file!.name);
+        // Generate output filename with translation and sanitization
+        // Split filename and extension
+        const originalName = file!.name;
+        const lastDot = originalName.lastIndexOf('.');
+        const nameWithoutExt = lastDot > 0 ? originalName.slice(0, lastDot) : originalName;
+        const extension = lastDot > 0 ? originalName.slice(lastDot) : '';
+
+        // Convert the filename (without extension) from simplified to traditional Chinese
+        const convertedName = await convertText(nameWithoutExt);
+
+        // Sanitize and recombine with extension
+        const fileName = sanitizeFilename(convertedName + extension);
 
         // Send completion event with converted content
         controller.enqueue(
