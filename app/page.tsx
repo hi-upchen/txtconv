@@ -1,4 +1,5 @@
 import FileUpload from '@/components/FileUpload';
+import Footer from '@/components/Footer';
 
 export default function Home() {
   return (
@@ -30,6 +31,8 @@ export default function Home() {
           <FileUpload />
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }
