@@ -10,7 +10,8 @@
     "test": "jest --watch",
     "test:ci": "jest --ci --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "clean": "rm -fr .next .swc node_modules"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.1.0",
