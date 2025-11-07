@@ -1,4 +1,4 @@
-import { getConverter, convertText, convertFile } from '../opencc';
+import { getConverter, convertText, convertFile } from '@/lib/opencc';
 
 describe('OpenCC Helper', () => {
   describe('getConverter', () => {

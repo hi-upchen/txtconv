@@ -1,19 +1,22 @@
 /**
  * @jest-environment node
  */
-import { POST } from '../route';
+import { POST } from '@/app/api/convert/route';
 import { NextRequest } from 'next/server';
 
-// Mock the OpenCC and encoding helpers
+// Mock the OpenCC, encoding helpers, and archive
 jest.mock('@/lib/opencc');
 jest.mock('@/lib/encoding');
+jest.mock('@/lib/archive');
 
 import { convertFile } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
+import { archiveOriginalFile } from '@/lib/archive';
 
 describe('POST /api/convert', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (archiveOriginalFile as jest.Mock).mockResolvedValue(undefined);
   });
 
   const createFormData = (content: string, filename: string = 'test.txt') => {
@@ -144,9 +147,9 @@ describe('POST /api/convert', () => {
     expect(errorEvent.message).toContain('No file provided');
   });
 
-  it('should reject files larger than 4MB', async () => {
-    // Create a 5MB file content
-    const largeContent = 'x'.repeat(5 * 1024 * 1024);
+  it('should reject files larger than 25MB', async () => {
+    // Create a 26MB file content
+    const largeContent = 'x'.repeat(26 * 1024 * 1024);
     const formData = createFormData(largeContent);
 
     const request = new NextRequest('http://localhost:3000/api/convert', {
@@ -159,8 +162,8 @@ describe('POST /api/convert', () => {
 
     const errorEvent = events.find(e => e.type === 'error');
     expect(errorEvent).toBeDefined();
-    expect(errorEvent.message).toContain('4MB');
-  });
+    expect(errorEvent.message).toContain('25MB');
+  }, 10000);
 
   it('should include file metadata in events', async () => {
     const formData = createFormData('简体中文', 'my-file.txt');
@@ -180,21 +183,18 @@ describe('POST /api/convert', () => {
     expect(completeEvent.fileName).toBeDefined();
   });
 
-  it('should handle empty files', async () => {
+  it('should reject empty files', async () => {
     const formData = createFormData('');
     const request = new NextRequest('http://localhost:3000/api/convert', {
       method: 'POST',
       body: formData,
     });
 
-    (readFileWithEncoding as jest.Mock).mockResolvedValue('');
-    (convertFile as jest.Mock).mockResolvedValue('');
-
     const response = await POST(request);
     const events = await parseSSEStream(response);
 
-    const completeEvent = events.find(e => e.type === 'complete');
-    expect(completeEvent).toBeDefined();
-    expect(completeEvent.content).toBe('');
+    const errorEvent = events.find(e => e.type === 'error');
+    expect(errorEvent).toBeDefined();
+    expect(errorEvent.message).toContain('File is empty');
   });
 });

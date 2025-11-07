@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { detectEncoding, readFileWithEncoding } from '../encoding';
+import { detectEncoding, readFileWithEncoding } from '@/lib/encoding';
 
 describe('Encoding Detection Helper', () => {
   describe('detectEncoding', () => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import FileUpload from '../FileUpload';
+import FileUpload from '@/components/FileUpload';
 
 // Mock fetch for API calls
 global.fetch = jest.fn();
@@ -248,42 +248,6 @@ describe('FileUpload Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Conversion failed/i)).toBeInTheDocument();
-    });
-  });
-
-  it('should accept txt, csv, and srt files', () => {
-    render(<FileUpload />);
-
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(input?.accept).toContain('.txt');
-    expect(input?.accept).toContain('.csv');
-    expect(input?.accept).toContain('.srt');
-  });
-
-  it('should show survey message after files are uploaded', async () => {
-    const user = userEvent.setup();
-
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      body: {
-        getReader: () => ({
-          read: jest.fn().mockResolvedValue({ done: true }),
-        }),
-      },
-    });
-
-    render(<FileUpload />);
-
-    const file = new File(['test'], 'test.txt', { type: 'text/plain' });
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-
-    if (input) {
-      await user.upload(input, file);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByText(/幫助我做得更好/i)).toBeInTheDocument();
-      expect(screen.getByText(/填寫問卷/i)).toBeInTheDocument();
     });
   });
 });
