@@ -71,17 +71,23 @@ function FileRow({ store }: { store: UploadFile }) {
               <div className="status-msg">上傳中</div>
             </div>
           )}
-          {store.isUploading === false && store.isProcessing === false && store.downloadLink === null && (
+          {store.isUploading === false && store.isProcessing === false && store.downloadLink === null && !store.errMessage && (
             <div className="control-msg-progress">
               <span>
                 <i className="fa fa-spinner fa-spin"></i>
               </span>
+              <div className="status-msg">處理中</div>
             </div>
           )}
           {store.isProcessing !== false && (
             <div className="control-msg-progress">
               <progress className="progress" value={store.convertProgress} max="1"></progress>
               <div className="status-msg">轉換中</div>
+            </div>
+          )}
+          {store.errMessage && (
+            <div className="control-msg-progress">
+              <i className="fa fa-exclamation-circle has-text-danger" style={{ fontSize: '1.5rem' }}></i>
             </div>
           )}
           {store.downloadLink && (
@@ -197,15 +203,21 @@ export default function FileUpload() {
       return;
     }
 
-    // STEP 2: Request conversion via SSE (pass blobUrl)
+    // STEP 2a: Show "處理中" status
     setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, isUploading: false, isProcessing: true } : f))
+      prev.map((f) => (f.id === id ? { ...f, isUploading: false, isProcessing: false } : f))
     );
 
+    // STEP 2b: Prepare conversion request
     const formData = new FormData();
     formData.append('blobUrl', blobUrl);
     formData.append('fileName', file.name);
     formData.append('fileId', id);
+
+    // STEP 2c: Start conversion (triggers "轉換中")
+    setFiles((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, isProcessing: true } : f))
+    );
 
     try {
       const response = await fetch('/api/convert', {
