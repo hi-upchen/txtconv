@@ -1,10 +1,15 @@
+export interface EncodingDetectionResult {
+  content: string;
+  encoding: string;
+}
+
 /**
  * Read a File object and decode it with proper encoding detection
  * Optimized for Chinese text conversion (GB2312, GBK, GB18030, Big5)
  * @param file - File object to read
- * @returns Promise<string> Decoded file content as string
+ * @returns Promise<EncodingDetectionResult> Decoded file content and detected encoding
  */
-export async function readFileWithEncoding(file: File): Promise<string> {
+export async function readFileWithEncoding(file: File): Promise<EncodingDetectionResult> {
   // Always use arrayBuffer with encoding detection for proper handling of non-UTF-8 files
   // file.text() assumes UTF-8 and will silently corrupt GB2312/GBK/Big5 content
   const arrayBuffer = await file.arrayBuffer();
@@ -12,7 +17,7 @@ export async function readFileWithEncoding(file: File): Promise<string> {
 
   // Handle empty files
   if (buffer.length === 0) {
-    return '';
+    return { content: '', encoding: 'UTF-8' };
   }
 
   // Try UTF-8 first with fatal mode (most common for modern files)
@@ -20,7 +25,7 @@ export async function readFileWithEncoding(file: File): Promise<string> {
   try {
     const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
     const decoded = utf8Decoder.decode(arrayBuffer);
-    return decoded;
+    return { content: decoded, encoding: 'UTF-8' };
   } catch {
     // Not valid UTF-8, try Chinese encodings
   }
@@ -35,7 +40,7 @@ export async function readFileWithEncoding(file: File): Promise<string> {
       const decoded = decoder.decode(arrayBuffer);
       // If no replacement characters (�), encoding is likely correct
       if (!decoded.includes('�')) {
-        return decoded;
+        return { content: decoded, encoding };
       }
     } catch {
       // Encoding not supported, try next
@@ -45,5 +50,5 @@ export async function readFileWithEncoding(file: File): Promise<string> {
 
   // Final fallback to UTF-8 with lenient mode (allows replacement characters)
   const decoder = new TextDecoder('utf-8');
-  return decoder.decode(arrayBuffer);
+  return { content: decoder.decode(arrayBuffer), encoding: 'UTF-8 (fallback)' };
 }

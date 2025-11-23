@@ -1,23 +1,25 @@
 /**
  * @jest-environment node
  */
-import { readFileWithEncoding } from '@/lib/encoding';
+import { readFileWithEncoding, EncodingDetectionResult } from '@/lib/encoding';
 
 describe('Encoding Detection Helper', () => {
   describe('readFileWithEncoding', () => {
-    it('should read UTF-8 file correctly', async () => {
+    it('should read UTF-8 file correctly and return encoding', async () => {
       const content = 'Hello World 你好世界';
       const file = new File([content], 'test.txt', { type: 'text/plain' });
 
       const result = await readFileWithEncoding(file);
-      expect(result).toBe(content);
+      expect(result.content).toBe(content);
+      expect(result.encoding).toBe('UTF-8');
     });
 
-    it('should handle empty file', async () => {
+    it('should handle empty file and return UTF-8', async () => {
       const file = new File([''], 'empty.txt', { type: 'text/plain' });
 
       const result = await readFileWithEncoding(file);
-      expect(result).toBe('');
+      expect(result.content).toBe('');
+      expect(result.encoding).toBe('UTF-8');
     });
 
     it('should handle files with special characters', async () => {
@@ -25,7 +27,8 @@ describe('Encoding Detection Helper', () => {
       const file = new File([content], 'special.txt', { type: 'text/plain' });
 
       const result = await readFileWithEncoding(file);
-      expect(result).toBe(content);
+      expect(result.content).toBe(content);
+      expect(result.encoding).toBe('UTF-8');
     });
 
     it('should detect and read Chinese text files', async () => {
@@ -33,8 +36,9 @@ describe('Encoding Detection Helper', () => {
       const file = new File([content], 'chinese.txt', { type: 'text/plain' });
 
       const result = await readFileWithEncoding(file);
-      expect(result).toContain('简体中文');
-      expect(result).toContain('繁體中文');
+      expect(result.content).toContain('简体中文');
+      expect(result.content).toContain('繁體中文');
+      expect(result.encoding).toBe('UTF-8');
     });
 
     it('should handle multiline files', async () => {
@@ -42,16 +46,17 @@ describe('Encoding Detection Helper', () => {
       const file = new File([content], 'multiline.txt', { type: 'text/plain' });
 
       const result = await readFileWithEncoding(file);
-      const lines = result.split('\n');
+      const lines = result.content.split('\n');
       expect(lines).toHaveLength(3);
       expect(lines[0]).toBe('Line 1');
       expect(lines[1]).toBe('Line 2');
       expect(lines[2]).toBe('Line 3');
+      expect(result.encoding).toBe('UTF-8');
     });
 
     // TDD: Tests for non-UTF-8 encodings (GB2312/GBK)
     // These tests expose the bug where file.text() assumes UTF-8
-    it('should correctly read GB2312 encoded Chinese text', async () => {
+    it('should correctly read GB2312 encoded Chinese text and detect encoding', async () => {
       // Create GB2312 encoded content: "简体中文" (Simplified Chinese)
       // GB2312 hex bytes for these characters
       const gb2312Bytes = new Uint8Array([
@@ -65,10 +70,12 @@ describe('Encoding Detection Helper', () => {
       const result = await readFileWithEncoding(file);
 
       // Should properly decode to "简体中文"
-      expect(result).toBe('简体中文');
+      expect(result.content).toBe('简体中文');
+      // Should detect as GB2312 or GBK (GBK is superset of GB2312)
+      expect(['GB2312', 'GBK', 'GB18030']).toContain(result.encoding);
     });
 
-    it('should correctly read GBK encoded Chinese text with special chars', async () => {
+    it('should correctly read GBK encoded Chinese text with special chars and detect encoding', async () => {
       // GBK encoding for "嬌妾為寵" (Traditional Chinese phrase)
       // Correct GBK-encoded bytes
       const gbkBytes = new Uint8Array([
@@ -82,7 +89,9 @@ describe('Encoding Detection Helper', () => {
       const result = await readFileWithEncoding(file);
 
       // Should properly decode to "嬌妾為寵"
-      expect(result).toBe('嬌妾為寵');
+      expect(result.content).toBe('嬌妾為寵');
+      // Should detect as GBK or GB18030
+      expect(['GBK', 'GB18030']).toContain(result.encoding);
     });
 
     it('should handle mixed encoding with ASCII and GB2312', async () => {
@@ -98,8 +107,9 @@ describe('Encoding Detection Helper', () => {
       const file = new File([mixedBytes], 'mixed.txt', { type: 'text/plain' });
       const result = await readFileWithEncoding(file);
 
-      expect(result).toContain('Hello');
-      expect(result).toContain('世界');
+      expect(result.content).toContain('Hello');
+      expect(result.content).toContain('世界');
+      expect(['GB2312', 'GBK', 'GB18030']).toContain(result.encoding);
     });
 
     it('should not corrupt non-UTF-8 files by assuming UTF-8', async () => {
@@ -114,8 +124,9 @@ describe('Encoding Detection Helper', () => {
       const result = await readFileWithEncoding(file);
 
       // Should NOT contain UTF-8 replacement characters or garbage
-      expect(result).not.toContain('�');
-      expect(result).toBe('测试');
+      expect(result.content).not.toContain('�');
+      expect(result.content).toBe('测试');
+      expect(['GB2312', 'GBK', 'GB18030']).toContain(result.encoding);
     });
   });
 });

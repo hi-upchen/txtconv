@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
         // Read file with encoding detection
         // Use unified encoding detection for all files (both blob-fetched and direct uploads)
-        const fileContent = await readFileWithEncoding(file!);
+        const { content: fileContent, encoding: inputEncoding } = await readFileWithEncoding(file!);
 
         // Send reading complete event
         controller.enqueue(
@@ -134,6 +134,7 @@ export async function POST(request: NextRequest) {
               percent: 1.0,
               fileName,
               content: convertedContent,
+              inputEncoding,
             })}\n\n`
           )
         );

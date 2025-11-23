@@ -4,6 +4,14 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { upload } from '@vercel/blob/client';
 import { validateFile } from '@/lib/file-validator';
+import {
+  trackFileUploadStarted,
+  trackFileUploadCompleted,
+  trackFileUploadFailed,
+  trackFileConversionStarted,
+  trackFileConversionCompleted,
+  trackFileConversionFailed,
+} from '@/lib/analytics';
 
 export interface UploadFile {
   id: string;
@@ -17,6 +25,9 @@ export interface UploadFile {
   size: number;
   errMessage: string | null;
   convertedContent?: string;
+  uploadStartTime?: number;
+  conversionStartTime?: number;
+  inputEncoding?: string;
 }
 
 function humanFileSize(bytes: number, si: boolean = true): string {
@@ -105,6 +116,7 @@ export default function FileUpload() {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [downloadQueue, setDownloadQueue] = useState<Array<{ content: string; fileName: string }>>([]);
   const isProcessingQueue = useRef(false);
+  const lastUploadMethod = useRef<'drag_drop' | 'click_select'>('click_select');
 
   // Process download queue one at a time
   useEffect(() => {
@@ -153,6 +165,9 @@ export default function FileUpload() {
     // Auto-convert only valid files
     newFiles.forEach((uploadFile, index) => {
       if (!uploadFile.errMessage) {
+        // Track upload started for valid files
+        trackFileUploadStarted(uploadFile.file, lastUploadMethod.current);
+
         setTimeout(() => {
           convertFile(uploadFile);
         }, index * 100); // Stagger by 100ms
@@ -163,15 +178,19 @@ export default function FileUpload() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     multiple: true,
+    onDragEnter: () => {
+      lastUploadMethod.current = 'drag_drop';
+    },
   });
 
   const convertFile = async (uploadFile: UploadFile) => {
     const { id, file } = uploadFile;
 
     // STEP 1: Upload to Vercel Blob with progress
+    const uploadStartTime = Date.now();
     setFiles((prev) =>
       prev.map((f) =>
-        f.id === id ? { ...f, isUploading: true, uploadProgress: 0, isProcessing: false } : f
+        f.id === id ? { ...f, isUploading: true, uploadProgress: 0, isProcessing: false, uploadStartTime } : f
       )
     );
 
@@ -187,7 +206,15 @@ export default function FileUpload() {
         },
       });
       blobUrl = blob.url;
+
+      // Track successful upload
+      const uploadDuration = Date.now() - uploadStartTime;
+      trackFileUploadCompleted(file, uploadDuration);
     } catch (error) {
+      // Track failed upload
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+      trackFileUploadFailed(file, 'network_error', errorMessage);
+
       setFiles((prev) =>
         prev.map((f) =>
           f.id === id
@@ -195,7 +222,7 @@ export default function FileUpload() {
                 ...f,
                 isUploading: false,
                 isProcessing: false,
-                errMessage: error instanceof Error ? error.message : 'Upload failed',
+                errMessage: errorMessage,
               }
             : f
         )
@@ -215,8 +242,13 @@ export default function FileUpload() {
     formData.append('fileId', id);
 
     // STEP 2c: Start conversion (triggers "轉換中")
+    const conversionStartTime = Date.now();
+
+    // Track conversion started
+    trackFileConversionStarted(file);
+
     setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, isProcessing: true } : f))
+      prev.map((f) => (f.id === id ? { ...f, isProcessing: true, conversionStartTime } : f))
     );
 
     try {
@@ -262,6 +294,11 @@ export default function FileUpload() {
                     prev.map((f) => (f.id === id ? { ...f, convertProgress: data.percent } : f))
                   );
                 } else if (data.type === 'complete') {
+                  // Track successful conversion
+                  const conversionDuration = Date.now() - conversionStartTime;
+                  const inputEncoding = data.inputEncoding || 'unknown';
+                  trackFileConversionCompleted(file, conversionDuration, inputEncoding);
+
                   setFiles((prev) =>
                     prev.map((f) =>
                       f.id === id
@@ -272,6 +309,7 @@ export default function FileUpload() {
                             downloadLink: 'blob://converted',
                             filename: data.fileName,
                             convertedContent: data.content,
+                            inputEncoding,
                           }
                         : f
                     )
@@ -282,6 +320,16 @@ export default function FileUpload() {
                     setDownloadQueue((prev) => [...prev, { content: data.content, fileName: data.fileName }]);
                   }
                 } else if (data.type === 'error') {
+                  // Track failed conversion
+                  // Try to get inputEncoding from the current file state if available
+                  const currentFile = files.find((f) => f.id === id);
+                  trackFileConversionFailed(
+                    file,
+                    'processing_error',
+                    data.message,
+                    currentFile?.inputEncoding
+                  );
+
                   setFiles((prev) =>
                     prev.map((f) =>
                       f.id === id
@@ -303,6 +351,12 @@ export default function FileUpload() {
         }
       }
     } catch (error) {
+      // Track failed conversion (network or stream error)
+      const errorMessage = error instanceof Error ? error.message : 'Conversion failed';
+      // Try to get inputEncoding from the current file state if available
+      const currentFile = files.find((f) => f.id === id);
+      trackFileConversionFailed(file, 'processing_error', errorMessage, currentFile?.inputEncoding);
+
       setFiles((prev) =>
         prev.map((f) =>
           f.id === id
@@ -310,7 +364,7 @@ export default function FileUpload() {
                 ...f,
                 isUploading: false,
                 isProcessing: false,
-                errMessage: error instanceof Error ? error.message : 'Conversion failed',
+                errMessage: errorMessage,
               }
             : f
         )
