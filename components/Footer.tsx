@@ -1,4 +1,6 @@
 export default function Footer() {
+  const version = process.env.BUILD_VERSION || 'dev';
+
   return (
     <div className="footer">
       <span>© 出走工程師 Up</span>
@@ -32,6 +34,8 @@ export default function Footer() {
           <i className="fab fa-facebook-square"></i>
         </span>
       </a>
+
+      <span className="version" title="Build version">{version}</span>
     </div>
   );
 }

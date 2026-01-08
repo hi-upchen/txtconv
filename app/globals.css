@@ -92,6 +92,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .footer a {
@@ -106,6 +107,14 @@ body {
 
 .footer > span {
   margin-right: 0.5rem;
+}
+
+.footer .version {
+  font-size: 11px;
+  color: #aaa;
+  font-family: monospace;
+  position: absolute;
+  right: 0;
 }
 
 /* Survey message styles */
