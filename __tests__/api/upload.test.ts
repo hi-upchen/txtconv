@@ -79,77 +79,22 @@ describe('POST /api/upload', () => {
       expect(capturedConfig.addRandomSuffix).toBe(true);
     });
 
-    it('should allow text/plain files', async () => {
+    it('should not restrict content types (client-side blocklist handles validation)', async () => {
       const mockResponse = { url: 'test', uploadUrl: 'test', token: 'test' };
 
-      let allowedTypes: string[] = [];
+      let capturedConfig: any;
       (handleUpload as jest.Mock).mockImplementation(async ({ onBeforeGenerateToken }) => {
         if (onBeforeGenerateToken) {
-          const config = await onBeforeGenerateToken('test.txt');
-          allowedTypes = config.allowedContentTypes || [];
+          capturedConfig = await onBeforeGenerateToken('test.md');
         }
         return mockResponse;
       });
 
-      const request = createUploadRequest({ pathname: 'test.txt', type: 'text/plain' });
+      const request = createUploadRequest({ pathname: 'test.md', type: 'text/markdown' });
       await POST(request);
 
-      expect(allowedTypes).toContain('text/plain');
-    });
-
-    it('should allow text/csv files', async () => {
-      const mockResponse = { url: 'test', uploadUrl: 'test', token: 'test' };
-
-      let allowedTypes: string[] = [];
-      (handleUpload as jest.Mock).mockImplementation(async ({ onBeforeGenerateToken }) => {
-        if (onBeforeGenerateToken) {
-          const config = await onBeforeGenerateToken('test.csv');
-          allowedTypes = config.allowedContentTypes || [];
-        }
-        return mockResponse;
-      });
-
-      const request = createUploadRequest({ pathname: 'test.csv', type: 'text/csv' });
-      await POST(request);
-
-      expect(allowedTypes).toContain('text/csv');
-    });
-
-    it('should allow application/xml files', async () => {
-      const mockResponse = { url: 'test', uploadUrl: 'test', token: 'test' };
-
-      let allowedTypes: string[] = [];
-      (handleUpload as jest.Mock).mockImplementation(async ({ onBeforeGenerateToken }) => {
-        if (onBeforeGenerateToken) {
-          const config = await onBeforeGenerateToken('test.xml');
-          allowedTypes = config.allowedContentTypes || [];
-        }
-        return mockResponse;
-      });
-
-      const request = createUploadRequest({ pathname: 'test.xml', type: 'application/xml' });
-      await POST(request);
-
-      expect(allowedTypes).toContain('application/xml');
-      expect(allowedTypes).toContain('text/xml');
-    });
-
-    it('should allow .srt subtitle files', async () => {
-      const mockResponse = { url: 'test', uploadUrl: 'test', token: 'test' };
-
-      let allowedTypes: string[] = [];
-      (handleUpload as jest.Mock).mockImplementation(async ({ onBeforeGenerateToken }) => {
-        if (onBeforeGenerateToken) {
-          const config = await onBeforeGenerateToken('test.srt');
-          allowedTypes = config.allowedContentTypes || [];
-        }
-        return mockResponse;
-      });
-
-      const request = createUploadRequest({ pathname: 'test.srt', type: 'application/x-subrip' });
-      await POST(request);
-
-      expect(allowedTypes).toContain('application/x-subrip');
+      // Server should not restrict content types - client blocklist handles this
+      expect(capturedConfig.allowedContentTypes).toBeUndefined();
     });
   });
 

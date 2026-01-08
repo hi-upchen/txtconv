@@ -15,15 +15,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async (_pathname) => {
-        // Allow text-based file types only
+        // Client-side blocklist handles file type validation
+        // Server only enforces size limit
         return {
-          allowedContentTypes: [
-            'text/plain',
-            'text/csv',
-            'application/xml',
-            'text/xml',
-            'application/x-subrip', // .srt subtitle files
-          ],
           maximumSizeInBytes: 25 * 1024 * 1024, // 25MB
           addRandomSuffix: true,
         };
