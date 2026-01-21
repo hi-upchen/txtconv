@@ -1,9 +1,17 @@
 import FileUpload from '@/components/FileUpload';
 import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import PricingSection from '@/components/PricingSection';
+import { getAuthUser, getProfile } from '@/lib/actions/auth';
 
-export default function Home() {
+export default async function Home() {
+  const user = await getAuthUser();
+  const profile = user ? await getProfile(user.id) : null;
+
   return (
     <div className="App">
+      <Header user={user} profile={profile} />
+
       <section className="hero">
         <div className="hero-body">
           <div className="container">
@@ -31,6 +39,10 @@ export default function Home() {
           <FileUpload />
         </div>
       </div>
+
+      <PricingSection
+        gumroadUrl={process.env.NEXT_PUBLIC_GUMROAD_URL || 'https://gumroad.com'}
+      />
 
       <div className="container">
         <Footer />
