@@ -91,7 +91,7 @@ export default function AuthButton({ user, profile }: AuthButtonProps) {
 
         {/* Login Modal */}
         {modalState === 'login' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[340px] mx-4 p-6">
               <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
@@ -128,7 +128,7 @@ export default function AuthButton({ user, profile }: AuthButtonProps) {
 
         {/* Check Email Modal */}
         {modalState === 'check-email' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[320px] mx-4 p-6 text-center">
               <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -170,7 +170,7 @@ export default function AuthButton({ user, profile }: AuthButtonProps) {
         onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
       >
         {user.email}
-        <span className="material-symbols-outlined text-sm">expand_more</span>
+        <span className="material-symbols-outlined text-sm">{showDropdown ? 'expand_less' : 'expand_more'}</span>
       </button>
 
       {/* Dropdown menu */}
