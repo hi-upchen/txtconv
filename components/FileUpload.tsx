@@ -24,6 +24,7 @@ export interface UploadFile {
   filename: string;
   size: number;
   errMessage: string | null;
+  isRetryable: boolean;  // true = server error, false = validation error
   convertedContent?: string;
   uploadStartTime?: number;
   conversionStartTime?: number;
@@ -31,13 +32,22 @@ export interface UploadFile {
 }
 
 // Circular progress ring component
-function ProgressRing({ progress, color = 'primary' }: { progress: number; color?: 'primary' | 'gray' }) {
-  const circumference = 2 * Math.PI * 16; // radius = 16
+function ProgressRing({ progress, color = 'primary' }: {
+  progress: number;
+  color?: 'primary' | 'gray' | 'blue' | 'amber'
+}) {
+  const circumference = 2 * Math.PI * 16;
   const offset = circumference * (1 - progress);
   const percent = Math.round(progress * 100);
 
-  const strokeClass = color === 'primary' ? 'stroke-primary' : 'stroke-gray-300';
-  const textClass = color === 'primary' ? 'text-primary' : 'text-gray-300';
+  const colorMap = {
+    primary: { stroke: 'stroke-primary', text: 'text-primary' },
+    gray: { stroke: 'stroke-gray-300', text: 'text-gray-300' },
+    blue: { stroke: 'stroke-blue-400', text: 'text-blue-400' },
+    amber: { stroke: 'stroke-amber-400', text: 'text-amber-400' },
+  };
+
+  const { stroke: strokeClass, text: textClass } = colorMap[color];
 
   return (
     <div className="relative w-10 h-10 flex items-center justify-center">
@@ -158,14 +168,23 @@ function FileRow({
             <span className="material-symbols-outlined">download</span>
           </button>
         ) : isFailed ? (
-          <button
-            onClick={onRetry}
-            className="w-10 h-10 bg-white border border-red-200 hover:bg-red-50 text-red-500 rounded-full transition-all flex items-center justify-center shadow-sm shrink-0"
-          >
-            <span className="material-symbols-outlined">refresh</span>
-          </button>
+          store.isRetryable ? (
+            <button
+              onClick={onRetry}
+              className="w-10 h-10 bg-white border border-red-200 hover:bg-red-50 text-red-500 rounded-full transition-all flex items-center justify-center shadow-sm shrink-0"
+            >
+              <span className="material-symbols-outlined">refresh</span>
+            </button>
+          ) : (
+            <div className="w-10 h-10 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined">warning</span>
+            </div>
+          )
         ) : (
-          <ProgressRing progress={progress} color={isWaiting ? 'gray' : 'primary'} />
+          <ProgressRing
+            progress={progress}
+            color={isUploading ? 'blue' : isConverting ? 'amber' : isWaiting ? 'gray' : 'primary'}
+          />
         )}
       </div>
     </div>
@@ -208,7 +227,17 @@ export default function FileUpload() {
     const uploadStartTime = Date.now();
     setFiles((prev) =>
       prev.map((f) =>
-        f.id === id ? { ...f, isUploading: true, uploadProgress: 0, isProcessing: false, errMessage: null, uploadStartTime } : f
+        f.id === id
+          ? {
+              ...f,
+              isUploading: true,
+              uploadProgress: 0,
+              isProcessing: false,
+              errMessage: null,
+              uploadStartTime,
+              isRetryable: false,  // Reset during retry
+            }
+          : f
       )
     );
 
@@ -241,6 +270,7 @@ export default function FileUpload() {
                 isUploading: false,
                 isProcessing: false,
                 errMessage: errorMessage,
+                isRetryable: true,  // Server errors are retryable
               }
             : f
         )
@@ -354,6 +384,7 @@ export default function FileUpload() {
                             isUploading: false,
                             isProcessing: false,
                             errMessage: data.message,
+                            isRetryable: true,  // Server errors are retryable
                           }
                         : f
                     );
@@ -379,6 +410,7 @@ export default function FileUpload() {
                 isUploading: false,
                 isProcessing: false,
                 errMessage: errorMessage,
+                isRetryable: true,  // Server errors are retryable
               }
             : f
         );
@@ -402,6 +434,7 @@ export default function FileUpload() {
         filename: file.name,
         size: file.size,
         errMessage: validation.valid ? null : validation.error || 'Invalid file',
+        isRetryable: false,  // Validation errors are never retryable
       };
     });
 
@@ -431,13 +464,21 @@ export default function FileUpload() {
   // Retry handler
   const retryFile = useCallback((fileId: string) => {
     const failedFile = files.find((f) => f.id === fileId);
-    if (!failedFile) return;
+    if (!failedFile || !failedFile.isRetryable) return;  // Safety check
 
     // Reset state and retry
     setFiles((prev) =>
       prev.map((f) =>
         f.id === fileId
-          ? { ...f, errMessage: null, uploadProgress: 0, convertProgress: 0, isUploading: null, isProcessing: false }
+          ? {
+              ...f,
+              errMessage: null,
+              uploadProgress: 0,
+              convertProgress: 0,
+              isUploading: null,
+              isProcessing: false,
+              isRetryable: false,  // Reset for new attempt
+            }
           : f
       )
     );
