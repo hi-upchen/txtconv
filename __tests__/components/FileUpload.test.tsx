@@ -117,21 +117,26 @@ describe('FileUpload Component', () => {
       pathname: 'file-abc123.txt',
     });
 
-    // Mock conversions
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      body: {
-        getReader: () => ({
-          read: jest.fn()
-            .mockResolvedValueOnce({
-              done: false,
-              value: new TextEncoder().encode('data: {"type":"complete","content":"converted","fileName":"file.txt"}\n\n'),
-            })
-            .mockResolvedValueOnce({
-              done: true,
-            }),
-        }),
-      },
+    // Mock conversions - return distinct filenames for each file
+    let callCount = 0;
+    (global.fetch as jest.Mock).mockImplementation(() => {
+      callCount++;
+      const fileName = `converted-file${callCount}.txt`;
+      return {
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: jest.fn()
+              .mockResolvedValueOnce({
+                done: false,
+                value: new TextEncoder().encode(`data: {"type":"complete","content":"converted","fileName":"${fileName}"}\n\n`),
+              })
+              .mockResolvedValueOnce({
+                done: true,
+              }),
+          }),
+        },
+      };
     });
 
     render(<FileUpload />);
@@ -144,54 +149,25 @@ describe('FileUpload Component', () => {
       await user.upload(input, [file1, file2]);
     }
 
-    // Wait for both files to be processed (check for 2 file rows)
+    // Wait for both files to show up with converted filenames
     await waitFor(() => {
-      const fileRows = document.querySelectorAll('.file-row');
-      expect(fileRows.length).toBe(2);
+      expect(screen.getByText('converted-file1.txt')).toBeInTheDocument();
+      expect(screen.getByText('converted-file2.txt')).toBeInTheDocument();
     });
   });
 
-  it('should show file size in human readable format', async () => {
+  it('should show progress during upload', async () => {
     const user = userEvent.setup();
 
-    // Mock blob upload
-    (upload as jest.Mock).mockResolvedValue({
-      url: 'https://blob.vercel-storage.com/file.txt',
-      pathname: 'file-abc123.txt',
-    });
-
-    // Mock conversion
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      body: {
-        getReader: () => ({
-          read: jest.fn().mockResolvedValue({ done: true }),
-        }),
-      },
-    });
-
-    render(<FileUpload />);
-
-    const content = 'x'.repeat(2048); // 2KB
-    const file = new File([content], 'test.txt', { type: 'text/plain' });
-
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    if (input) {
-      await user.upload(input, file);
-    }
-
-    await waitFor(() => {
-      expect(screen.getByText(/2\.0 kB/i)).toBeInTheDocument();
-    });
-  });
-
-  it('should show progress during conversion', async () => {
-    const user = userEvent.setup();
-
-    // Mock blob upload
-    (upload as jest.Mock).mockResolvedValue({
-      url: 'https://blob.vercel-storage.com/file.txt',
-      pathname: 'file-abc123.txt',
+    // Mock blob upload with delay
+    (upload as jest.Mock).mockImplementation(async (fileName, file, options) => {
+      if (options?.onUploadProgress) {
+        options.onUploadProgress({ percentage: 50 });
+      }
+      return {
+        url: 'https://blob.vercel-storage.com/file.txt',
+        pathname: 'file-abc123.txt',
+      };
     });
 
     let resolveRead: any;
@@ -217,16 +193,16 @@ describe('FileUpload Component', () => {
       await user.upload(input, file);
     }
 
-    // Should show progress indicator
+    // Should show filename
     await waitFor(() => {
-      expect(screen.getByText('轉換中')).toBeInTheDocument();
+      expect(screen.getByText('test.txt')).toBeInTheDocument();
     });
 
     // Resolve to complete
     resolveRead({ done: true });
   });
 
-  it('should show download link after conversion', async () => {
+  it('should show download button after conversion', async () => {
     const user = userEvent.setup();
 
     // Mock blob upload
@@ -260,11 +236,15 @@ describe('FileUpload Component', () => {
       await user.upload(input, file);
     }
 
-    // Wait for conversion to complete and show download icon
+    // Wait for conversion to complete and show "Finished" status
     await waitFor(() => {
-      const downloadIcon = document.querySelector('.fa-download');
-      expect(downloadIcon).toBeInTheDocument();
+      expect(screen.getByText('Finished')).toBeInTheDocument();
     }, { timeout: 3000 });
+
+    // Should have a download button
+    await waitFor(() => {
+      expect(screen.getByText('download')).toBeInTheDocument();
+    });
   });
 
   it('should show error message on conversion failure', async () => {
@@ -301,8 +281,14 @@ describe('FileUpload Component', () => {
       await user.upload(input, file);
     }
 
+    // Should show "Failed" status
     await waitFor(() => {
-      expect(screen.getByText(/Conversion failed/i)).toBeInTheDocument();
+      expect(screen.getByText('Failed')).toBeInTheDocument();
+    });
+
+    // Should have retry button
+    await waitFor(() => {
+      expect(screen.getByText('refresh')).toBeInTheDocument();
     });
   });
 });

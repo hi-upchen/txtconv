@@ -1,150 +1,30 @@
-/* Original App.css styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
 body {
-  background-color: #EFEFEF;
+  background-color: #f3f4f6;
   min-height: 100vh;
 }
 
-.App .container {
-  max-width: 960px;
+/* Progress ring animation */
+.progress-ring__circle {
+  transition: stroke-dashoffset 0.35s;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
 }
 
-.App .file-row {
-  padding: 0.5rem 2rem;
-}
-
-.App .dropzone-panel {
-  margin-bottom: 1rem;
-}
-
-.App .dropzone-panel .dropzone-normal {
-  border: 5px dashed #00d1b2;
-  padding: 1rem 2rem;
-  font-size: 1.5rem;
-  color: #00d1b2;
-  cursor: pointer;
-  border-radius: 4px;
-  background-color: #fff;
-  transition: all 0.2s ease-in-out;
-}
-
-.App .dropzone-panel .dropzone-normal:hover {
-  border-color: #00d1b2;
-  background-color: #f0fffe;
-  transform: scale(1.01);
-}
-
-.App .dropzone-panel .dropzone-active {
-  border: 5px dashed #23d160;
-  padding: 1rem 2rem;
-  font-size: 1.5rem;
-  border-color: #23d160;
-  color: #23d160;
-  cursor: pointer;
-  border-radius: 4px;
-  background-color: #f0ffed;
-  transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(35, 209, 96, 0.2);
-  transition: all 0.2s ease-in-out;
-}
-
-.App .file-status {
-  border: 1px solid #999;
-  border-width: 0 0 1px 0;
-}
-
-.App .file-status:first-child {
-  border-width: 1px 0 1px 0;
-}
-
-.App .file-status .main-infos {
-  flex: 1;
-}
-
-.App .file-status .controls {
-  align-items: center;
-  min-width: 3rem;
-  justify-content: center;
-  font-size: 2rem;
-}
-
-.App .file-status .controls .control-msg-progress {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-
-.App .file-status .controls .control-msg-progress .status-msg {
-  font-size: 1rem;
-}
-
-.App .file-status .controls .control-msg-progress progress {
-  min-width: 3rem;
-  margin-bottom: 0;
-}
-
-.footer {
-  color: #888;
-  font-size: 14px;
-  text-align: center;
-  background-color: transparent;
-  line-height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-
-.footer a {
-  color: #888;
-  display: inline-flex;
-  align-items: center;
-}
-
-.footer a.support-us {
-  margin-right: 0.5rem;
-}
-
-.footer > span {
-  margin-right: 0.5rem;
-}
-
-.footer .version {
-  font-size: 11px;
-  color: #aaa;
-  font-family: monospace;
-  position: absolute;
-  right: 0;
-}
-
-/* Survey message styles */
-.survey-message {
-  animation: gentlePulse 3s ease-in-out infinite;
-  box-shadow: 0 4px 15px rgba(238, 90, 36, 0.15);
-  border: none;
-  overflow: hidden;
-}
-
-.survey-message .message-header p {
-  color: white;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-}
-
-@keyframes gentlePulse {
-  0%,
-  100% {
-    transform: scale(1);
-    box-shadow: 0 4px 15px rgba(238, 90, 36, 0.15);
+/* Pulsing dot animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
   }
   50% {
-    transform: scale(1.02);
-    box-shadow: 0 6px 20px rgba(238, 90, 36, 0.25);
+    opacity: 0.5;
   }
 }
 
-.survey-button:hover {
-  transform: translateY(-2px) scale(1.05) !important;
-  box-shadow: 0 6px 12px rgba(238, 90, 36, 0.35) !important;
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

@@ -9,22 +9,11 @@ interface HeaderProps {
 
 export default function Header({ user, profile }: HeaderProps) {
   return (
-    <nav className="navbar" role="navigation" aria-label="main navigation">
-      <div className="container">
-        <div className="navbar-brand">
-          <a className="navbar-item" href="/">
-            <strong>txtconv</strong>
-          </a>
-        </div>
-
-        <div className="navbar-end">
-          <div className="navbar-item">
-            <div className="buttons">
-              <AuthButton user={user} profile={profile} />
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
+    <header className="bg-white border-b border-gray-100 py-3 px-6 flex items-center justify-between sticky top-0 z-50 shadow-sm">
+      <a href="/" className="text-xl font-bold tracking-tight text-primary">
+        txtconv
+      </a>
+      <AuthButton user={user} profile={profile} />
+    </header>
   );
 }

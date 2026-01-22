@@ -47,57 +47,86 @@ export default function AuthButton({ user, profile }: AuthButtonProps) {
     window.location.reload();
   };
 
+  // Logged out state - show Login button
   if (!user) {
     return (
       <>
         <button
-          className="button is-light"
+          className="bg-white text-gray-700 border border-gray-200 px-4 py-1.5 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
           onClick={() => setShowModal(true)}
         >
           Login
         </button>
 
+        {/* Modal */}
         {showModal && (
-          <div className={`modal ${showModal ? 'is-active' : ''}`}>
-            <div className="modal-background" onClick={() => setShowModal(false)} />
-            <div className="modal-card">
-              <header className="modal-card-head">
-                <p className="modal-card-title">Login</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/50"
+              onClick={() => setShowModal(false)}
+            />
+
+            {/* Modal content */}
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-800">Login</h2>
                 <button
-                  className="delete"
-                  aria-label="close"
                   onClick={() => setShowModal(false)}
-                />
-              </header>
-              <section className="modal-card-body">
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-6">
                 <form onSubmit={handleLogin}>
-                  <div className="field">
-                    <label className="label">Email</label>
-                    <div className="control">
-                      <input
-                        className="input"
-                        type="email"
-                        placeholder="your@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email
+                    </label>
+                    <input
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
                   </div>
+
                   {message && (
-                    <div className={`notification ${message.includes('Check') ? 'is-success' : 'is-danger'} is-light`}>
+                    <div
+                      className={`mb-4 px-4 py-3 rounded-lg text-sm ${
+                        message.includes('Check')
+                          ? 'bg-green-50 text-green-700 border border-green-200'
+                          : 'bg-red-50 text-red-700 border border-red-200'
+                      }`}
+                    >
                       {message}
                     </div>
                   )}
+
                   <button
-                    className={`button is-primary is-fullwidth ${isLoading ? 'is-loading' : ''}`}
+                    className={`w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                      isLoading ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
                     type="submit"
                     disabled={isLoading}
                   >
-                    Send Magic Link
+                    {isLoading ? (
+                      <>
+                        <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+                        Sending...
+                      </>
+                    ) : (
+                      'Send Magic Link'
+                    )}
                   </button>
                 </form>
-              </section>
+              </div>
             </div>
           </div>
         )}
@@ -105,35 +134,33 @@ export default function AuthButton({ user, profile }: AuthButtonProps) {
     );
   }
 
+  // Logged in state - show email dropdown
   return (
-    <div className={`dropdown ${showDropdown ? 'is-active' : ''}`}>
-      <div className="dropdown-trigger">
-        <button
-          className="button is-light"
-          onClick={() => setShowDropdown(!showDropdown)}
-        >
-          <span>{user.email}</span>
-          {isPaidUser(profile) && (
-            <span className="tag is-warning ml-2">Pro</span>
-          )}
-          <span className="icon is-small">
-            <i className="fas fa-angle-down" aria-hidden="true" />
-          </span>
-        </button>
-      </div>
-      <div className="dropdown-menu">
-        <div className="dropdown-content">
-          <div className="dropdown-item">
-            <p className="is-size-7 has-text-grey">
-              {isPaidUser(profile) ? 'Pro Account' : 'Free Account'}
-            </p>
+    <div className="relative">
+      <button
+        className="bg-white text-gray-700 border border-gray-200 px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 hover:bg-gray-50 transition-colors"
+        onClick={() => setShowDropdown(!showDropdown)}
+        onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+      >
+        {user.email}
+        <span className="material-symbols-outlined text-sm">expand_more</span>
+      </button>
+
+      {/* Dropdown menu */}
+      {showDropdown && (
+        <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-50">
+          <div className="px-4 py-3 text-xs text-gray-400 border-b border-gray-100 bg-gray-50/50">
+            {isPaidUser(profile) ? 'Pro Account' : 'Free Account'}
           </div>
-          <hr className="dropdown-divider" />
-          <a className="dropdown-item" onClick={handleLogout}>
+          <button
+            onClick={handleLogout}
+            className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-base">logout</span>
             Logout
-          </a>
+          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }

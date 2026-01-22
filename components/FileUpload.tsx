@@ -30,83 +30,143 @@ export interface UploadFile {
   inputEncoding?: string;
 }
 
-function humanFileSize(bytes: number, si: boolean = true): string {
-  const thresh = si ? 1000 : 1024;
-  if (Math.abs(bytes) < thresh) {
-    return bytes + ' B';
-  }
-  const units = si
-    ? ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
-    : ['KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
-  let u = -1;
-  do {
-    bytes /= thresh;
-    ++u;
-  } while (Math.abs(bytes) >= thresh && u < units.length - 1);
-  return bytes.toFixed(1) + ' ' + units[u];
-}
+// Circular progress ring component
+function ProgressRing({ progress, color = 'primary' }: { progress: number; color?: 'primary' | 'gray' }) {
+  const circumference = 2 * Math.PI * 16; // radius = 16
+  const offset = circumference * (1 - progress);
+  const percent = Math.round(progress * 100);
 
-function FileRow({ store }: { store: UploadFile }) {
-  const downloadConverted = () => {
-    if (store.convertedContent && store.filename) {
-      const blob = new Blob([store.convertedContent], { type: 'text/plain; charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = store.filename;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-  };
+  const strokeClass = color === 'primary' ? 'stroke-primary' : 'stroke-gray-300';
+  const textClass = color === 'primary' ? 'text-primary' : 'text-gray-300';
 
   return (
-    <div className="file-row file-status animate__animated animate__fadeIn">
-      <div className="is-flex">
-        <div className="main-infos">
-          <h3 className="is-size-5">
-            {store.downloadLink ? (
-              <a onClick={downloadConverted} style={{ cursor: 'pointer' }}>
-                {store.filename}
-              </a>
-            ) : (
-              store.filename
-            )}
-          </h3>
-          <div>{humanFileSize(store.size, true)}</div>
-          {store.errMessage && <div className="has-text-danger">{store.errMessage}</div>}
+    <div className="relative w-10 h-10 flex items-center justify-center">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 40 40">
+        <circle
+          cx="20"
+          cy="20"
+          r="16"
+          fill="none"
+          className="stroke-gray-100"
+          strokeWidth="3"
+        />
+        <circle
+          cx="20"
+          cy="20"
+          r="16"
+          fill="none"
+          className={strokeClass}
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.35s ease' }}
+        />
+      </svg>
+      <span className={`absolute text-[10px] font-bold ${textClass}`}>{percent}%</span>
+    </div>
+  );
+}
+
+// File row component with all states
+function FileRow({
+  store,
+  onDownload,
+  onRetry,
+}: {
+  store: UploadFile;
+  onDownload: () => void;
+  onRetry: () => void;
+}) {
+  // Determine state
+  const isUploading = store.isUploading === true;
+  const isConverting = store.isProcessing === true;
+  const isWaiting = store.isUploading === false && store.isProcessing === false && !store.downloadLink && !store.errMessage;
+  const isFinished = store.downloadLink !== null;
+  const isFailed = store.errMessage !== null;
+
+  // Calculate progress
+  const progress = isUploading
+    ? store.uploadProgress / 100
+    : isConverting
+    ? store.convertProgress
+    : isFinished
+    ? 1
+    : 0;
+
+  // Status text and dot color
+  let statusText = '';
+  let dotColor = '';
+  let dotAnimate = false;
+
+  if (isUploading) {
+    statusText = 'Uploading...';
+    dotColor = 'bg-blue-400';
+    dotAnimate = true;
+  } else if (isConverting) {
+    statusText = 'Converting...';
+    dotColor = 'bg-amber-400';
+    dotAnimate = true;
+  } else if (isWaiting) {
+    statusText = 'Waiting...';
+    dotColor = 'bg-gray-300';
+  } else if (isFinished) {
+    statusText = 'Finished';
+  } else if (isFailed) {
+    statusText = 'Failed';
+  }
+
+  // Border style
+  let borderClass = 'border-gray-100';
+  if (isFinished) borderClass = 'border-primary/30';
+  if (isFailed) borderClass = 'border-red-100';
+
+  return (
+    <div
+      className={`w-full bg-white rounded-lg border ${borderClass} p-4 flex items-center justify-between gap-4 shadow-sm h-20 transition-all`}
+    >
+      {/* Left: File info */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <div className={`font-bold text-sm truncate mb-1 ${isFailed ? 'text-gray-400' : 'text-gray-800'}`}>
+          {store.filename}
         </div>
-        <div className="is-flex controls">
-          {store.isUploading !== false && (
-            <div className="control-msg-progress">
-              <progress className="progress" value={store.uploadProgress} max="100"></progress>
-              <div className="status-msg">上傳中</div>
-            </div>
-          )}
-          {store.isUploading === false && store.isProcessing === false && store.downloadLink === null && !store.errMessage && (
-            <div className="control-msg-progress">
-              <span>
-                <i className="fa fa-spinner fa-spin"></i>
-              </span>
-              <div className="status-msg">處理中</div>
-            </div>
-          )}
-          {store.isProcessing !== false && (
-            <div className="control-msg-progress">
-              <progress className="progress" value={store.convertProgress} max="1"></progress>
-              <div className="status-msg">轉換中</div>
-            </div>
-          )}
-          {store.errMessage && (
-            <div className="control-msg-progress">
-              <i className="fa fa-exclamation-circle has-text-danger" style={{ fontSize: '1.5rem' }}></i>
-            </div>
-          )}
-          {store.downloadLink && (
-            <a onClick={downloadConverted} style={{ cursor: 'pointer' }}>
-              <i className="fa fa-download"></i>
-            </a>
-          )}
-        </div>
+        {isFinished ? (
+          <div className="text-xs font-medium text-primary flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[14px]">check_circle</span>
+            {statusText}
+          </div>
+        ) : isFailed ? (
+          <div className="text-xs text-red-500 font-medium flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[14px]">error</span>
+            {statusText}
+          </div>
+        ) : (
+          <div className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${dotAnimate ? 'animate-pulse' : ''}`} />
+            {statusText}
+          </div>
+        )}
+      </div>
+
+      {/* Right: Action or Progress */}
+      <div className="flex items-center gap-4">
+        {isFinished ? (
+          <button
+            onClick={onDownload}
+            className="w-10 h-10 bg-primary hover:bg-primary-hover text-white rounded-lg transition-all flex items-center justify-center shadow-md shadow-primary/20 shrink-0"
+          >
+            <span className="material-symbols-outlined">download</span>
+          </button>
+        ) : isFailed ? (
+          <button
+            onClick={onRetry}
+            className="w-10 h-10 bg-white border border-red-200 hover:bg-red-50 text-red-500 rounded-full transition-all flex items-center justify-center shadow-sm shrink-0"
+          >
+            <span className="material-symbols-outlined">refresh</span>
+          </button>
+        ) : (
+          <ProgressRing progress={progress} color={isWaiting ? 'gray' : 'primary'} />
+        )}
       </div>
     </div>
   );
@@ -141,56 +201,14 @@ export default function FileUpload() {
     }
   }, [downloadQueue]);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles: UploadFile[] = acceptedFiles.map((file) => {
-      // Validate file using shared validator
-      const validation = validateFile(file);
-
-      return {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        file,
-        uploadProgress: 0,
-        convertProgress: 0,
-        isUploading: validation.valid ? null : false,
-        isProcessing: false,
-        downloadLink: null,
-        filename: file.name,
-        size: file.size,
-        errMessage: validation.valid ? null : validation.error || 'Invalid file',
-      };
-    });
-
-    setFiles((prev) => [...prev, ...newFiles]);
-
-    // Auto-convert only valid files
-    newFiles.forEach((uploadFile, index) => {
-      if (!uploadFile.errMessage) {
-        // Track upload started for valid files
-        trackFileUploadStarted(uploadFile.file, lastUploadMethod.current);
-
-        setTimeout(() => {
-          convertFile(uploadFile);
-        }, index * 100); // Stagger by 100ms
-      }
-    });
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    multiple: true,
-    onDragEnter: () => {
-      lastUploadMethod.current = 'drag_drop';
-    },
-  });
-
-  const convertFile = async (uploadFile: UploadFile) => {
+  const convertFile = useCallback(async (uploadFile: UploadFile) => {
     const { id, file } = uploadFile;
 
     // STEP 1: Upload to Vercel Blob with progress
     const uploadStartTime = Date.now();
     setFiles((prev) =>
       prev.map((f) =>
-        f.id === id ? { ...f, isUploading: true, uploadProgress: 0, isProcessing: false, uploadStartTime } : f
+        f.id === id ? { ...f, isUploading: true, uploadProgress: 0, isProcessing: false, errMessage: null, uploadStartTime } : f
       )
     );
 
@@ -321,17 +339,15 @@ export default function FileUpload() {
                   }
                 } else if (data.type === 'error') {
                   // Track failed conversion
-                  // Try to get inputEncoding from the current file state if available
-                  const currentFile = files.find((f) => f.id === id);
-                  trackFileConversionFailed(
-                    file,
-                    'processing_error',
-                    data.message,
-                    currentFile?.inputEncoding
-                  );
-
-                  setFiles((prev) =>
-                    prev.map((f) =>
+                  setFiles((prev) => {
+                    const currentFile = prev.find((f) => f.id === id);
+                    trackFileConversionFailed(
+                      file,
+                      'processing_error',
+                      data.message,
+                      currentFile?.inputEncoding
+                    );
+                    return prev.map((f) =>
                       f.id === id
                         ? {
                             ...f,
@@ -340,8 +356,8 @@ export default function FileUpload() {
                             errMessage: data.message,
                           }
                         : f
-                    )
-                  );
+                    );
+                  });
                 }
               } catch (parseError) {
                 console.error('Failed to parse SSE message:', parseError, 'Line:', line);
@@ -353,12 +369,10 @@ export default function FileUpload() {
     } catch (error) {
       // Track failed conversion (network or stream error)
       const errorMessage = error instanceof Error ? error.message : 'Conversion failed';
-      // Try to get inputEncoding from the current file state if available
-      const currentFile = files.find((f) => f.id === id);
-      trackFileConversionFailed(file, 'processing_error', errorMessage, currentFile?.inputEncoding);
-
-      setFiles((prev) =>
-        prev.map((f) =>
+      setFiles((prev) => {
+        const currentFile = prev.find((f) => f.id === id);
+        trackFileConversionFailed(file, 'processing_error', errorMessage, currentFile?.inputEncoding);
+        return prev.map((f) =>
           f.id === id
             ? {
                 ...f,
@@ -367,83 +381,119 @@ export default function FileUpload() {
                 errMessage: errorMessage,
               }
             : f
-        )
-      );
+        );
+      });
     }
-  };
+  }, []);
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const newFiles: UploadFile[] = acceptedFiles.map((file) => {
+      // Validate file using shared validator
+      const validation = validateFile(file);
+
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        file,
+        uploadProgress: 0,
+        convertProgress: 0,
+        isUploading: validation.valid ? null : false,
+        isProcessing: false,
+        downloadLink: null,
+        filename: file.name,
+        size: file.size,
+        errMessage: validation.valid ? null : validation.error || 'Invalid file',
+      };
+    });
+
+    setFiles((prev) => [...prev, ...newFiles]);
+
+    // Auto-convert only valid files
+    newFiles.forEach((uploadFile, index) => {
+      if (!uploadFile.errMessage) {
+        // Track upload started for valid files
+        trackFileUploadStarted(uploadFile.file, lastUploadMethod.current);
+
+        setTimeout(() => {
+          convertFile(uploadFile);
+        }, index * 100); // Stagger by 100ms
+      }
+    });
+  }, [convertFile]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    multiple: true,
+    onDragEnter: () => {
+      lastUploadMethod.current = 'drag_drop';
+    },
+  });
+
+  // Retry handler
+  const retryFile = useCallback((fileId: string) => {
+    const failedFile = files.find((f) => f.id === fileId);
+    if (!failedFile) return;
+
+    // Reset state and retry
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === fileId
+          ? { ...f, errMessage: null, uploadProgress: 0, convertProgress: 0, isUploading: null, isProcessing: false }
+          : f
+      )
+    );
+
+    // Re-run conversion
+    convertFile(failedFile);
+  }, [files, convertFile]);
+
+  // Download handler
+  const downloadFile = useCallback((fileId: string) => {
+    const file = files.find((f) => f.id === fileId);
+    if (file?.convertedContent && file?.filename) {
+      const blob = new Blob([file.convertedContent], { type: 'text/plain; charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }, [files]);
 
   return (
-    <>
-      <div className="dropzone">
-        <div
-          {...getRootProps()}
-          className={isDragActive ? 'dropzone-active' : 'dropzone-normal'}
-        >
-          <input {...getInputProps()} />
-          <p style={{ pointerEvents: 'none' }}>上傳檔案，支援 txt, csv, srt, ...</p>
+    <div className="flex flex-col gap-4 w-full">
+      {/* Dropzone */}
+      <section className="w-full">
+        <div className="relative group">
+          <div
+            {...getRootProps()}
+            className={`border-4 border-dashed rounded-xl bg-transparent py-16 px-6 flex flex-col items-center justify-center transition-all cursor-pointer ${
+              isDragActive
+                ? 'border-green-500 bg-green-50/50 scale-[1.02] shadow-lg'
+                : 'border-primary hover:bg-primary/5'
+            }`}
+          >
+            <input {...getInputProps()} />
+            <p className="text-2xl font-medium text-primary text-center pointer-events-none">
+              上傳檔案，支援 txt, csv, srt, ...
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
 
+      {/* File list */}
       {files.length > 0 && (
-        <div className="App">
-          {files.map((fileHandler, i) => (
-            <FileRow store={fileHandler} key={'FileRow' + i} />
+        <section className="flex flex-col gap-3">
+          {files.map((fileHandler) => (
+            <FileRow
+              key={fileHandler.id}
+              store={fileHandler}
+              onDownload={() => downloadFile(fileHandler.id)}
+              onRetry={() => retryFile(fileHandler.id)}
+            />
           ))}
-        </div>
+        </section>
       )}
-
-      {/* Survey message - Hidden for now */}
-      {/* {files.length > 0 && (
-        <div className="container animate__animated animate__fadeInUp animate__delay-2s" style={{ marginTop: '2rem' }}>
-          <article className="message is-info survey-message">
-            <div
-              className="message-header"
-              style={{
-                padding: '0.5rem 2rem',
-                background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)',
-              }}
-            >
-              <p>
-                <span style={{ marginRight: '0.5rem', fontSize: '1.2rem' }}>📋</span>
-                幫助我做得更好
-              </p>
-            </div>
-            <div
-              className="message-body"
-              style={{
-                padding: '1rem 2rem',
-                background: 'linear-gradient(to bottom, #fff5f5 0%, #ffffff 100%)',
-              }}
-            >
-              <p style={{ marginBottom: '0.75rem', color: '#4a5568', lineHeight: '1.6' }}>
-                <span style={{ fontWeight: '500' }}>感謝您使用繁簡轉換工具！</span>
-                <br />
-                為了提供更好的服務，我想了解您的使用需求。
-                <span style={{ color: '#ee5a24', fontWeight: '500' }}> 只需 2 分鐘</span>，幫助我改善功能！
-              </p>
-              <div className="buttons" style={{ marginBottom: '0.25rem' }}>
-                <a
-                  href="https://www.surveycake.com/s/w8oKr"
-                  className="button is-primary survey-button"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)',
-                    border: 'none',
-                    color: 'white',
-                    fontWeight: '500',
-                    padding: '0.75rem 1.5rem',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 4px 6px rgba(238, 90, 36, 0.25)',
-                  }}
-                >
-                  填寫問卷 →
-                </a>
-              </div>
-            </div>
-          </article>
-        </div>
-      )} */}
-    </>
+    </div>
   );
 }

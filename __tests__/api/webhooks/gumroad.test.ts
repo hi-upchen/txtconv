@@ -8,6 +8,7 @@ import { POST } from '@/app/api/webhooks/gumroad/route';
 jest.mock('@/lib/supabase/server', () => ({
   createServiceClient: () => ({
     from: jest.fn().mockReturnValue({
+      upsert: jest.fn().mockResolvedValue({ data: null, error: null }),
       update: jest.fn().mockReturnValue({
         eq: jest.fn().mockResolvedValue({ data: null, error: null }),
       }),
