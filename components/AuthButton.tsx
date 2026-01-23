@@ -118,7 +118,7 @@ export default function AuthButton({ user, profile }: AuthButtonProps) {
                   type="submit"
                   disabled={isLoading}
                 >
-                  {isLoading ? '傳送中...' : '寄送魔術連結'}
+                  {isLoading ? '傳送中...' : '寄送登入連結'}
                 </button>
               </form>
               <p className="text-xs text-gray-400 text-center mt-4">無須密碼，安全便捷</p>
