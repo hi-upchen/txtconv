@@ -1,12 +1,18 @@
 'use client';
 
+import type { LicenseType } from '@/types/user';
+
 interface PricingSectionProps {
   gumroadUrl?: string;
+  licenseType?: LicenseType;
 }
 
 export default function PricingSection({
-  gumroadUrl = 'https://gumroad.com/l/YOUR_PRODUCT_ID'
+  gumroadUrl = 'https://gumroad.com/l/YOUR_PRODUCT_ID',
+  licenseType = 'free'
 }: PricingSectionProps) {
+  const isCurrent = (tier: LicenseType) => licenseType === tier;
+
   return (
     <section className="py-8">
       <h3 className="text-3xl font-bold text-center text-gray-800 mb-12">方案價格</h3>
@@ -29,9 +35,13 @@ export default function PricingSection({
               5MB 檔案大小限制
             </li>
           </ul>
-          <button className="w-full py-3 px-4 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed" disabled>
-            目前方案
-          </button>
+          {isCurrent('free') ? (
+            <button className="w-full py-3 px-4 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed" disabled>
+              目前方案
+            </button>
+          ) : (
+            <div className="w-full py-3 px-4" />
+          )}
         </div>
 
         {/* Monthly Tier */}
@@ -61,9 +71,15 @@ export default function PricingSection({
               自訂字典對照 <span className="text-xs text-gray-400">(coming soon)</span>
             </li>
           </ul>
-          <button className="w-full py-3 px-4 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed" disabled>
-            即將推出
-          </button>
+          {isCurrent('monthly') ? (
+            <button className="w-full py-3 px-4 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed" disabled>
+              目前方案
+            </button>
+          ) : (
+            <button className="w-full py-3 px-4 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed" disabled>
+              即將推出
+            </button>
+          )}
         </div>
 
         {/* Lifetime Tier */}
@@ -98,14 +114,20 @@ export default function PricingSection({
               優先客戶支援
             </li>
           </ul>
-          <a
-            href={gumroadUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
-          >
-            立即購買 →
-          </a>
+          {isCurrent('lifetime') ? (
+            <button className="w-full py-3 px-4 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed" disabled>
+              目前方案
+            </button>
+          ) : (
+            <a
+              href={gumroadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              立即購買 →
+            </a>
+          )}
         </div>
       </div>
     </section>

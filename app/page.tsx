@@ -1,7 +1,7 @@
 import FileUpload from '@/components/FileUpload';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
-// import PricingSection from '@/components/PricingSection';
+import PricingSection from '@/components/PricingSection';
 import { getAuthUser, getProfile } from '@/lib/actions/auth';
 
 export default async function Home() {
@@ -33,10 +33,11 @@ export default async function Home() {
         {/* File Upload Section */}
         <FileUpload />
 
-        {/* Pricing Section - hidden until login is deployed */}
-        {/* <PricingSection
+        {/* Pricing Section */}
+        <PricingSection
           gumroadUrl={process.env.NEXT_PUBLIC_GUMROAD_URL || 'https://gumroad.com'}
-        /> */}
+          licenseType={profile?.license_type ?? 'free'}
+        />
       </main>
 
       <Footer />
