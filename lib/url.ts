@@ -8,7 +8,8 @@ export function getBaseUrl(request: Request): string {
   }
   const forwardedHost = request.headers.get('x-forwarded-host');
   if (forwardedHost) {
-    return `https://${forwardedHost}`;
+    const proto = request.headers.get('x-forwarded-proto') || 'https';
+    return `${proto}://${forwardedHost}`;
   }
   const { origin } = new URL(request.url);
   return origin;

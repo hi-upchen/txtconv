@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getBaseUrl } from '@/lib/url';
+import { ensureProfileLinked } from '@/lib/actions/auth';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,9 +11,15 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      // Link auth user to existing profile (or create one)
+      const user = data?.user;
+      if (user?.email) {
+        await ensureProfileLinked(user.id, user.email);
+      }
+
       return NextResponse.redirect(`${baseUrl}${next}`);
     }
   }

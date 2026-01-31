@@ -2,11 +2,17 @@ import FileUpload from '@/components/FileUpload';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 // import PricingSection from '@/components/PricingSection';
-import { getAuthUser, getProfile } from '@/lib/actions/auth';
+import { getAuthUser, getProfile, ensureProfileLinked } from '@/lib/actions/auth';
 
 export default async function Home() {
   const user = await getAuthUser();
-  const profile = user ? await getProfile(user.id) : null;
+  let profile = user ? await getProfile(user.id) : null;
+
+  // If user is authenticated but has no profile by ID, try to link/create one
+  if (user && !profile && user.email) {
+    await ensureProfileLinked(user.id, user.email);
+    profile = await getProfile(user.id);
+  }
 
   return (
     <>
