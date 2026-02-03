@@ -1,3 +1,4 @@
+import CustomDictEditor from '@/components/CustomDictEditor';
 import FileUpload from '@/components/FileUpload';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -38,6 +39,8 @@ export default async function Home() {
 
         {/* File Upload Section */}
         <FileUpload />
+
+        <CustomDictEditor user={user} profile={profile} />
 
         <PricingSection
           gumroadUrl={process.env.NEXT_PUBLIC_GUMROAD_URL || 'https://gumroad.com'}

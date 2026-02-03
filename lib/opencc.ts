@@ -1,4 +1,5 @@
 import { ConverterFactory } from 'opencc-js';
+import { applyCustomDict, type DictPair } from '@/lib/custom-dict';
 
 // Lazy-load converter instance (singleton pattern)
 let converterInstance: any = null;
@@ -69,6 +70,50 @@ export async function convertFile(
       onProgress(percent);
 
       // Add delay in development to make progress visible
+      if (DELAY_MS > 0) {
+        await sleep(DELAY_MS);
+      }
+    }
+  }
+
+  return convertedLines.join('\n');
+}
+
+/**
+ * Convert file content line by line with custom dictionary support and progress callback.
+ * Custom dictionary pairs override the default OpenCC conversion for matched terms.
+ * @param fileContent - File content as string
+ * @param customPairs - Custom dictionary pairs to apply
+ * @param onProgress - Optional progress callback (0.0 to 1.0)
+ * @returns Promise<string> Converted file content
+ */
+export async function convertFileWithCustomDict(
+  fileContent: string,
+  customPairs: DictPair[],
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  if (!fileContent) {
+    if (onProgress) onProgress(1.0);
+    return '';
+  }
+
+  if (customPairs.length === 0) {
+    return convertFile(fileContent, onProgress);
+  }
+
+  const converter = await getConverter();
+  const lines = fileContent.split('\n');
+  const totalLines = lines.length;
+  const convertedLines: string[] = [];
+  const progressInterval = Math.max(1, Math.ceil(totalLines / 100));
+  const DELAY_MS = parseInt(process.env.CONVERSION_PROGRESS_DELAY_MS || '0', 10);
+
+  for (let i = 0; i < totalLines; i++) {
+    convertedLines.push(applyCustomDict(lines[i], customPairs, converter));
+
+    if (onProgress && (i % progressInterval === 0 || i === totalLines - 1)) {
+      const percent = (i + 1) / totalLines;
+      onProgress(percent);
       if (DELAY_MS > 0) {
         await sleep(DELAY_MS);
       }

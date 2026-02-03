@@ -10,6 +10,7 @@ export interface Profile {
   purchased_at: string | null;
   created_at: string;
   updated_at: string;
+  custom_dict_url: string | null;
 }
 
 export interface GumroadWebhookPayload {

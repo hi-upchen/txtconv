@@ -4,12 +4,16 @@
 import { POST } from '@/app/api/convert/route';
 import { NextRequest } from 'next/server';
 
-// Mock the OpenCC, encoding helpers, and archive
+// Mock the OpenCC, encoding helpers, archive, and supabase
 jest.mock('@/lib/opencc');
 jest.mock('@/lib/encoding');
 jest.mock('@/lib/archive');
+jest.mock('@/lib/supabase/server', () => ({
+  createClient: jest.fn().mockRejectedValue(new Error('No request scope')),
+  createServiceClient: jest.fn(),
+}));
 
-import { convertFile, convertText } from '@/lib/opencc';
+import { convertText, convertFileWithCustomDict } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
 import { archiveOriginalFile } from '@/lib/archive';
 
@@ -55,7 +59,7 @@ describe('POST /api/convert', () => {
     });
 
     (readFileWithEncoding as jest.Mock).mockResolvedValue('简体中文');
-    (convertFile as jest.Mock).mockResolvedValue('簡體中文');
+    (convertFileWithCustomDict as jest.Mock).mockResolvedValue('簡體中文');
 
     const response = await POST(request);
 
@@ -72,7 +76,7 @@ describe('POST /api/convert', () => {
     });
 
     (readFileWithEncoding as jest.Mock).mockResolvedValue('简体中文测试内容');
-    (convertFile as jest.Mock).mockImplementation(async (content, callback) => {
+    (convertFileWithCustomDict as jest.Mock).mockImplementation(async (content, _pairs, callback) => {
       // Simulate progress callbacks
       if (callback) {
         callback(0.25);
@@ -125,7 +129,7 @@ describe('POST /api/convert', () => {
     });
 
     (readFileWithEncoding as jest.Mock).mockResolvedValue('简体中文');
-    (convertFile as jest.Mock).mockRejectedValue(new Error('Conversion failed'));
+    (convertFileWithCustomDict as jest.Mock).mockRejectedValue(new Error('Conversion failed'));
 
     const response = await POST(request);
     const events = await parseSSEStream(response);
@@ -178,7 +182,7 @@ describe('POST /api/convert', () => {
     });
 
     (readFileWithEncoding as jest.Mock).mockResolvedValue('简体中文');
-    (convertFile as jest.Mock).mockResolvedValue('簡體中文');
+    (convertFileWithCustomDict as jest.Mock).mockResolvedValue('簡體中文');
 
     const response = await POST(request);
     const events = await parseSSEStream(response);
@@ -222,7 +226,7 @@ describe('POST /api/convert', () => {
       });
 
       (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
-      (convertFile as jest.Mock).mockResolvedValue('簡體中文');
+      (convertFileWithCustomDict as jest.Mock).mockResolvedValue('簡體中文');
 
       const formData = createBlobFormData(blobUrl, 'test.txt');
       const request = new NextRequest('http://localhost:3000/api/convert', {
@@ -315,7 +319,7 @@ describe('POST /api/convert', () => {
       });
 
       (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
-      (convertFile as jest.Mock).mockResolvedValue('簡體中文');
+      (convertFileWithCustomDict as jest.Mock).mockResolvedValue('簡體中文');
 
       const formData = createBlobFormData(blobUrl, 'my-custom-file.txt');
       const request = new NextRequest('http://localhost:3000/api/convert', {
@@ -341,7 +345,7 @@ describe('POST /api/convert', () => {
       });
 
       (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
-      (convertFile as jest.Mock).mockResolvedValue('簡體中文');
+      (convertFileWithCustomDict as jest.Mock).mockResolvedValue('簡體中文');
 
       const formData = createBlobFormData(blobUrl, 'test.txt');
       const request = new NextRequest('http://localhost:3000/api/convert', {
@@ -383,7 +387,7 @@ describe('POST /api/convert', () => {
       formData.append('fileId', 'test-file-id');
 
       (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
-      (convertFile as jest.Mock).mockResolvedValue('簡體中文內容');
+      (convertFileWithCustomDict as jest.Mock).mockResolvedValue('簡體中文內容');
       // Mock convertText to translate the filename
       (convertText as jest.Mock).mockResolvedValue('我的簡體文檔');
 
@@ -410,7 +414,7 @@ describe('POST /api/convert', () => {
       formData.append('fileId', 'test-file-id');
 
       (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
-      (convertFile as jest.Mock).mockResolvedValue('測試');
+      (convertFileWithCustomDict as jest.Mock).mockResolvedValue('測試');
       (convertText as jest.Mock).mockResolvedValue('簡體文件名');
 
       const request = new NextRequest('http://localhost:3000/api/convert', {
@@ -435,7 +439,7 @@ describe('POST /api/convert', () => {
       formData.append('fileId', 'test-file-id');
 
       (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
-      (convertFile as jest.Mock).mockResolvedValue('English content');
+      (convertFileWithCustomDict as jest.Mock).mockResolvedValue('English content');
 
       const request = new NextRequest('http://localhost:3000/api/convert', {
         method: 'POST',
@@ -459,7 +463,7 @@ describe('POST /api/convert', () => {
       formData.append('fileId', 'test-file-id');
 
       (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
-      (convertFile as jest.Mock).mockResolvedValue('簡體');
+      (convertFileWithCustomDict as jest.Mock).mockResolvedValue('簡體');
       (convertText as jest.Mock).mockResolvedValue('簡體文件');
 
       const request = new NextRequest('http://localhost:3000/api/convert', {
@@ -485,7 +489,7 @@ describe('POST /api/convert', () => {
       formData.append('fileId', 'test-file-id');
 
       (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
-      (convertFile as jest.Mock).mockResolvedValue('內容');
+      (convertFileWithCustomDict as jest.Mock).mockResolvedValue('內容');
       (convertText as jest.Mock).mockResolvedValue('我的<文檔>');
 
       const request = new NextRequest('http://localhost:3000/api/convert', {

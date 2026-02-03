@@ -34,6 +34,10 @@ export default function PricingSection({
               <span className="text-gray-900 mt-0.5">•</span>
               5MB 檔案大小限制
             </li>
+            <li className="flex items-start gap-2">
+              <span className="text-gray-900 mt-0.5">•</span>
+              自訂字典對照（5 組）
+            </li>
           </ul>
           {isCurrent('free') ? (
             <button className="w-full py-3 px-4 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed" disabled>
@@ -68,7 +72,7 @@ export default function PricingSection({
             </li>
             <li className="flex items-start gap-2">
               <span className="text-gray-900 mt-0.5">•</span>
-              自訂字典對照 <span className="text-xs text-gray-400">(coming soon)</span>
+              自訂字典對照（10,000 組）
             </li>
           </ul>
           {isCurrent('monthly') ? (
@@ -112,6 +116,10 @@ export default function PricingSection({
             <li className="flex items-start gap-2">
               <span className="text-gray-900 mt-0.5">•</span>
               優先客戶支援
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-gray-900 mt-0.5">•</span>
+              自訂字典對照（10,000 組）
             </li>
           </ul>
           {isCurrent('lifetime') ? (

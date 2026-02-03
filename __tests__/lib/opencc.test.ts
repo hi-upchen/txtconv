@@ -1,4 +1,4 @@
-import { getConverter, convertText, convertFile } from '@/lib/opencc';
+import { getConverter, convertText, convertFile, convertFileWithCustomDict } from '@/lib/opencc';
 
 describe('OpenCC Helper', () => {
   describe('getConverter', () => {
@@ -92,6 +92,42 @@ describe('OpenCC Helper', () => {
       const fileContent = '简体中文';
       const result = await convertFile(fileContent);
       expect(result).toBe('簡體中文');
+    });
+  });
+
+  describe('convertFileWithCustomDict', () => {
+    it('should apply custom dict pairs during conversion', async () => {
+      const customPairs = [{ simplified: '代码', traditional: '程式' }];
+      const result = await convertFileWithCustomDict('代码和简体', customPairs);
+      expect(result).toContain('程式');
+      expect(result).toContain('簡體');
+    });
+
+    it('should behave like convertFile when custom pairs is empty', async () => {
+      const result = await convertFileWithCustomDict('简体中文', []);
+      const normalResult = await convertFile('简体中文');
+      expect(result).toBe(normalResult);
+    });
+
+    it('should call progress callback', async () => {
+      const customPairs = [{ simplified: '代码', traditional: '程式' }];
+      const updates: number[] = [];
+      await convertFileWithCustomDict('代码\n简体\n内容', customPairs, (p) => updates.push(p));
+      expect(updates.length).toBeGreaterThan(0);
+      expect(updates[updates.length - 1]).toBe(1.0);
+    });
+
+    it('should handle empty file', async () => {
+      const result = await convertFileWithCustomDict('', [{ simplified: '代码', traditional: '程式' }]);
+      expect(result).toBe('');
+    });
+
+    it('should handle multi-line content with custom dict', async () => {
+      const customPairs = [{ simplified: '代码', traditional: '程式' }];
+      const result = await convertFileWithCustomDict('第一行代码\n第二行内容', customPairs);
+      const lines = result.split('\n');
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toContain('程式');
     });
   });
 });
