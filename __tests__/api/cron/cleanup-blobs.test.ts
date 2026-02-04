@@ -72,7 +72,8 @@ describe('GET /api/cron/cleanup-blobs', () => {
 
     expect(response.status).toBe(200);
     expect(mockDel).toHaveBeenCalledTimes(1);
-    expect(mockDel).toHaveBeenCalledWith('https://blob.vercel-storage.com/old-file.txt');
+    // Single file is still batched into an array
+    expect(mockDel).toHaveBeenCalledWith(expect.arrayContaining(['https://blob.vercel-storage.com/old-file.txt']));
     expect(data.deleted).toBe(1);
   });
 
@@ -99,7 +100,7 @@ describe('GET /api/cron/cleanup-blobs', () => {
 
     expect(response.status).toBe(200);
     expect(mockDel).toHaveBeenCalledTimes(1);
-    expect(mockDel).toHaveBeenCalledWith('https://blob.vercel-storage.com/old-file.txt');
+    expect(mockDel).toHaveBeenCalledWith(expect.arrayContaining(['https://blob.vercel-storage.com/old-file.txt']));
     expect(data.deleted).toBe(1);
   });
 
@@ -135,6 +136,7 @@ describe('GET /api/cron/cleanup-blobs', () => {
 
     expect(response.status).toBe(200);
     expect(mockList).toHaveBeenCalledTimes(2);
+    // Batch delete is called once per page (for small batches)
     expect(mockDel).toHaveBeenCalledTimes(2);
     expect(data.deleted).toBe(2);
   });
