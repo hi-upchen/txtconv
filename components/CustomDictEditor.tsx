@@ -11,6 +11,7 @@ import {
   type DictValidationError,
 } from '@/lib/custom-dict';
 import { isPaidUser } from '@/lib/auth';
+import { updateDictCache } from '@/lib/client-converter';
 
 interface CustomDictEditorProps {
   user: User | null;
@@ -58,6 +59,8 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
         const loaded = data.content ?? '';
         setContent(loaded);
         setSavedContent(loaded);
+        // Update client-side cache
+        updateDictCache(parseDictionary(loaded));
         setErrors(validateDictionary(loaded));
       })
       .catch(() => {
@@ -104,6 +107,8 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
       }
 
       setSavedContent(contentToSave);
+      // Update client-side cache for conversion
+      updateDictCache(parseDictionary(contentToSave));
       setSaveStatus('saved');
       // Reset saved status after 2 seconds
       savedStatusTimerRef.current = setTimeout(() => {

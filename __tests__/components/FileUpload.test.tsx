@@ -3,13 +3,22 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FileUpload from '@/components/FileUpload';
 import { upload } from '@vercel/blob/client';
+import * as clientConverter from '@/lib/client-converter';
 
 // Mock Vercel Blob client
 jest.mock('@vercel/blob/client', () => ({
   upload: jest.fn(),
 }));
 
-// Mock fetch for API calls
+// Mock client-converter module
+jest.mock('@/lib/client-converter', () => ({
+  convertFile: jest.fn(),
+  areLibsLoaded: jest.fn(() => false),
+  loadConverterLibs: jest.fn(),
+  clearDictCache: jest.fn(),
+}));
+
+// Mock fetch for API calls (still needed for auth/profile)
 global.fetch = jest.fn();
 
 // Mock URL.createObjectURL
@@ -33,6 +42,7 @@ describe('FileUpload Component', () => {
     (global.fetch as jest.Mock).mockClear();
     (upload as jest.Mock).mockClear();
     mockClick.mockClear();
+    (clientConverter.convertFile as jest.Mock).mockClear();
   });
 
   it('should render upload dropzone with original text', () => {
@@ -44,9 +54,8 @@ describe('FileUpload Component', () => {
   it('should accept file drop and auto-convert', async () => {
     const user = userEvent.setup();
 
-    // Mock blob upload
+    // Mock blob upload for archiving
     (upload as jest.Mock).mockImplementation(async (fileName, file, options) => {
-      // Simulate progress callback
       if (options?.onUploadProgress) {
         options.onUploadProgress({ percentage: 50 });
         options.onUploadProgress({ percentage: 100 });
@@ -57,25 +66,16 @@ describe('FileUpload Component', () => {
       };
     });
 
-    // Mock successful conversion
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      body: {
-        getReader: () => ({
-          read: jest.fn()
-            .mockResolvedValueOnce({
-              done: false,
-              value: new TextEncoder().encode('data: {"type":"progress","percent":0.5}\n\n'),
-            })
-            .mockResolvedValueOnce({
-              done: false,
-              value: new TextEncoder().encode('data: {"type":"complete","content":"converted","fileName":"test.txt"}\n\n'),
-            })
-            .mockResolvedValueOnce({
-              done: true,
-            }),
-        }),
-      },
+    // Mock client-side conversion
+    (clientConverter.convertFile as jest.Mock).mockImplementation(async (file, userId, onProgress) => {
+      onProgress({ stage: 'loading-libs', percent: 0.1 });
+      onProgress({ stage: 'converting', percent: 0.5, currentLine: 50, totalLines: 100 });
+      onProgress({ stage: 'complete', percent: 1 });
+      return {
+        content: 'converted text',
+        fileName: 'test.txt',
+        encoding: 'UTF-8',
+      };
     });
 
     render(<FileUpload />);
@@ -92,50 +92,30 @@ describe('FileUpload Component', () => {
       expect(screen.getByText('test.txt')).toBeInTheDocument();
     });
 
-    // Should call upload to Vercel Blob
+    // Should call client-side converter
     await waitFor(() => {
-      expect(upload).toHaveBeenCalled();
-    });
-
-    // Should call convert API with blobUrl
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/convert',
-        expect.objectContaining({
-          method: 'POST',
-        })
-      );
+      expect(clientConverter.convertFile).toHaveBeenCalled();
     });
   });
 
   it('should accept multiple files', async () => {
     const user = userEvent.setup();
 
-    // Mock blob upload
+    // Mock blob upload for archiving
     (upload as jest.Mock).mockResolvedValue({
       url: 'https://blob.vercel-storage.com/file.txt',
       pathname: 'file-abc123.txt',
     });
 
-    // Mock conversions - return distinct filenames for each file
+    // Mock client-side conversions - return distinct filenames for each file
     let callCount = 0;
-    (global.fetch as jest.Mock).mockImplementation(() => {
+    (clientConverter.convertFile as jest.Mock).mockImplementation(async (file, userId, onProgress) => {
       callCount++;
-      const fileName = `converted-file${callCount}.txt`;
+      onProgress({ stage: 'complete', percent: 1 });
       return {
-        ok: true,
-        body: {
-          getReader: () => ({
-            read: jest.fn()
-              .mockResolvedValueOnce({
-                done: false,
-                value: new TextEncoder().encode(`data: {"type":"complete","content":"converted","fileName":"${fileName}"}\n\n`),
-              })
-              .mockResolvedValueOnce({
-                done: true,
-              }),
-          }),
-        },
+        content: 'converted text',
+        fileName: `converted-file${callCount}.txt`,
+        encoding: 'UTF-8',
       };
     });
 
@@ -156,32 +136,30 @@ describe('FileUpload Component', () => {
     });
   });
 
-  it('should show progress during upload', async () => {
+  it('should show progress during conversion', async () => {
     const user = userEvent.setup();
 
-    // Mock blob upload with delay
-    (upload as jest.Mock).mockImplementation(async (fileName, file, options) => {
-      if (options?.onUploadProgress) {
-        options.onUploadProgress({ percentage: 50 });
-      }
+    // Mock blob upload
+    (upload as jest.Mock).mockResolvedValue({
+      url: 'https://blob.vercel-storage.com/file.txt',
+      pathname: 'file-abc123.txt',
+    });
+
+    let resolveConversion: any;
+    const conversionPromise = new Promise((resolve) => {
+      resolveConversion = resolve;
+    });
+
+    // Mock client-side conversion that will wait
+    (clientConverter.convertFile as jest.Mock).mockImplementation(async (file, userId, onProgress) => {
+      onProgress({ stage: 'loading-libs', percent: 0.1 });
+      onProgress({ stage: 'converting', percent: 0.5, currentLine: 50, totalLines: 100 });
+      await conversionPromise;
       return {
-        url: 'https://blob.vercel-storage.com/file.txt',
-        pathname: 'file-abc123.txt',
+        content: 'converted text',
+        fileName: 'test.txt',
+        encoding: 'UTF-8',
       };
-    });
-
-    let resolveRead: any;
-    const readPromise = new Promise((resolve) => {
-      resolveRead = resolve;
-    });
-
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      body: {
-        getReader: () => ({
-          read: jest.fn().mockReturnValue(readPromise),
-        }),
-      },
     });
 
     render(<FileUpload />);
@@ -198,33 +176,29 @@ describe('FileUpload Component', () => {
       expect(screen.getByText('test.txt')).toBeInTheDocument();
     });
 
-    // Resolve to complete
-    resolveRead({ done: true });
+    // Resolve conversion to complete
+    resolveConversion();
   });
 
   it('should show download button after conversion', async () => {
     const user = userEvent.setup();
 
-    // Mock blob upload
+    // Mock blob upload for archiving
     (upload as jest.Mock).mockResolvedValue({
       url: 'https://blob.vercel-storage.com/file.txt',
       pathname: 'file-abc123.txt',
     });
 
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      body: {
-        getReader: () => ({
-          read: jest.fn()
-            .mockResolvedValueOnce({
-              done: false,
-              value: new TextEncoder().encode('data: {"type":"complete","content":"converted text","fileName":"2025-01-01 test.txt"}\n\n'),
-            })
-            .mockResolvedValueOnce({
-              done: true,
-            }),
-        }),
-      },
+    // Mock client-side conversion
+    (clientConverter.convertFile as jest.Mock).mockImplementation(async (file, userId, onProgress) => {
+      onProgress({ stage: 'loading-libs', percent: 0.1 });
+      onProgress({ stage: 'converting', percent: 0.5 });
+      onProgress({ stage: 'complete', percent: 1 });
+      return {
+        content: 'converted text',
+        fileName: '2025-01-01 test.txt',
+        encoding: 'UTF-8',
+      };
     });
 
     render(<FileUpload />);
@@ -250,27 +224,14 @@ describe('FileUpload Component', () => {
   it('should show error message on conversion failure', async () => {
     const user = userEvent.setup();
 
-    // Mock blob upload
+    // Mock blob upload (archiving still works)
     (upload as jest.Mock).mockResolvedValue({
       url: 'https://blob.vercel-storage.com/file.txt',
       pathname: 'file-abc123.txt',
     });
 
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      body: {
-        getReader: () => ({
-          read: jest.fn()
-            .mockResolvedValueOnce({
-              done: false,
-              value: new TextEncoder().encode('data: {"type":"error","message":"Conversion failed"}\n\n'),
-            })
-            .mockResolvedValueOnce({
-              done: true,
-            }),
-        }),
-      },
-    });
+    // Mock client-side conversion failure
+    (clientConverter.convertFile as jest.Mock).mockRejectedValue(new Error('Conversion failed'));
 
     render(<FileUpload />);
 
