@@ -838,3 +838,485 @@ git commit -m "test: complete client-converter test suite with full coverage
 | 10 | 0 | Verification |
 
 **Total: ~34 tests**
+
+---
+
+# Part 2: Dev Test Login Route for Chrome MCP
+
+**Goal:** Add a development-only login bypass route that enables Chrome MCP to test logged-in features without real authentication.
+
+**Architecture:** Mock user session with hardcoded UUID, comprehensive custom dictionary that differs from OpenCC defaults. Dev-only safeguards prevent accidental production use.
+
+---
+
+## Task 11: Create Test User Constants
+
+**Files:**
+- Create: `lib/test-user.ts`
+
+**Step 1: Create test user constants file**
+
+```typescript
+/**
+ * Test user configuration for development testing.
+ * NEVER use in production - guarded by environment checks.
+ */
+
+export const TEST_USER_ID = 'test-user-00000000-0000-0000-0000-000000000001';
+
+/**
+ * Comprehensive custom dictionary entries that DIFFER from OpenCC defaults.
+ * This allows verifying that custom dict is actually being applied.
+ *
+ * Format: simplified → custom traditional (different from OpenCC s2twp)
+ *
+ * OpenCC s2twp defaults shown in comments for comparison.
+ */
+export const TEST_CUSTOM_DICT_CSV = `软件,軟體程式
+硬件,硬體裝置
+内存,記憶體空間
+信息,訊息通知
+网络,網際網路
+数据,資料數據
+程序,程式程序
+文件,文件檔案
+视频,視訊影片
+音频,音訊聲音`;
+
+/**
+ * Parsed version of the test dictionary for direct use.
+ */
+export const TEST_CUSTOM_DICT_PAIRS = [
+  { simplified: '软件', traditional: '軟體程式' },      // OpenCC: 軟體
+  { simplified: '硬件', traditional: '硬體裝置' },      // OpenCC: 硬體
+  { simplified: '内存', traditional: '記憶體空間' },    // OpenCC: 記憶體
+  { simplified: '信息', traditional: '訊息通知' },      // OpenCC: 資訊
+  { simplified: '网络', traditional: '網際網路' },      // OpenCC: 網路
+  { simplified: '数据', traditional: '資料數據' },      // OpenCC: 資料
+  { simplified: '程序', traditional: '程式程序' },      // OpenCC: 程式
+  { simplified: '文件', traditional: '文件檔案' },      // OpenCC: 檔案
+  { simplified: '视频', traditional: '視訊影片' },      // OpenCC: 視訊
+  { simplified: '音频', traditional: '音訊聲音' },      // OpenCC: 音訊
+];
+
+/**
+ * Expected conversions for test verification.
+ * Use these to verify custom dict is applied, not OpenCC defaults.
+ */
+export const TEST_CONVERSIONS = {
+  // Input → Expected with custom dict (vs OpenCC default)
+  '软件测试': '軟體程式測試',           // OpenCC would give: 軟體測試
+  '硬件设备': '硬體裝置設備',           // OpenCC would give: 硬體裝置
+  '网络信息': '網際網路訊息通知',       // OpenCC would give: 網路資訊
+};
+```
+
+**Step 2: Verify file compiles**
+
+Run: `npx tsc lib/test-user.ts --noEmit --skipLibCheck`
+Expected: No errors
+
+**Step 3: Commit**
+
+```bash
+git add lib/test-user.ts
+git commit -m "feat: add test user constants for dev testing"
+```
+
+---
+
+## Task 12: Create Dev Login API Route
+
+**Files:**
+- Create: `app/api/dev/test-login/route.ts`
+
+**Step 1: Create the dev login route**
+
+```typescript
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { TEST_USER_ID, TEST_CUSTOM_DICT_PAIRS } from '@/lib/test-user';
+import { updateDictCache } from '@/lib/client-converter';
+
+/**
+ * DEV ONLY: Bypass login for testing with Chrome MCP.
+ * Creates a mock session with test user ID and custom dictionary.
+ *
+ * Security guards:
+ * 1. NODE_ENV must not be 'production'
+ * 2. ENABLE_TEST_LOGIN env var must be 'true'
+ */
+export async function GET() {
+  // Security guard 1: Block in production
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Test login is disabled in production' },
+      { status: 403 }
+    );
+  }
+
+  // Security guard 2: Require explicit opt-in
+  if (process.env.ENABLE_TEST_LOGIN !== 'true') {
+    return NextResponse.json(
+      { error: 'Test login not enabled. Set ENABLE_TEST_LOGIN=true in .env' },
+      { status: 403 }
+    );
+  }
+
+  try {
+    // Set a mock session cookie with test user ID
+    const cookieStore = await cookies();
+
+    // Create mock session data
+    const mockSession = {
+      user: {
+        id: TEST_USER_ID,
+        email: 'test@txtconv.local',
+        role: 'authenticated',
+      },
+      expires_at: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+    };
+
+    // Set session cookie (will be read by client-side code)
+    cookieStore.set('test-session', JSON.stringify(mockSession), {
+      httpOnly: false, // Allow client-side access for testing
+      secure: false,   // Allow HTTP for localhost
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60, // 24 hours
+      path: '/',
+    });
+
+    // Pre-load custom dictionary into cache
+    updateDictCache(TEST_CUSTOM_DICT_PAIRS);
+
+    // Redirect to home page
+    return NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+  } catch (error) {
+    console.error('Test login error:', error);
+    return NextResponse.json(
+      { error: 'Failed to create test session' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Step 2: Add ENABLE_TEST_LOGIN to .env**
+
+Add to `.env`:
+```
+ENABLE_TEST_LOGIN=true
+```
+
+**Step 3: Verify route works**
+
+Run: `curl -v http://localhost:3000/api/dev/test-login`
+Expected: 302 redirect to `/` with `test-session` cookie set
+
+**Step 4: Commit**
+
+```bash
+git add app/api/dev/test-login/route.ts
+git commit -m "feat: add dev-only test login route for Chrome MCP testing"
+```
+
+---
+
+## Task 13: Modify Client-Converter to Use Test Session
+
+**Files:**
+- Modify: `lib/client-converter.ts`
+
+**Step 1: Add test session detection**
+
+Add after the existing imports at the top of the file:
+
+```typescript
+import { TEST_USER_ID, TEST_CUSTOM_DICT_PAIRS } from '@/lib/test-user';
+
+/**
+ * Check if running with test session (dev only).
+ */
+function getTestSession(): { userId: string } | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const cookie = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('test-session='));
+
+    if (!cookie) return null;
+
+    const sessionData = JSON.parse(decodeURIComponent(cookie.split('=')[1]));
+    if (sessionData?.user?.id === TEST_USER_ID) {
+      return { userId: TEST_USER_ID };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+```
+
+**Step 2: Modify loadUserDictionary to handle test session**
+
+Find the `loadUserDictionary` function and add test session handling at the beginning:
+
+```typescript
+export async function loadUserDictionary(userId: string | undefined): Promise<DictPair[]> {
+  // Check for test session first (dev only)
+  const testSession = getTestSession();
+  if (testSession && testSession.userId === TEST_USER_ID) {
+    // Return test dictionary directly, skip Supabase
+    if (cachedDictPairs !== null && dictCacheUserId === TEST_USER_ID) {
+      return cachedDictPairs;
+    }
+    cachedDictPairs = TEST_CUSTOM_DICT_PAIRS;
+    dictCacheUserId = TEST_USER_ID;
+    return TEST_CUSTOM_DICT_PAIRS;
+  }
+
+  if (!userId) return [];
+
+  // ... rest of existing code
+```
+
+**Step 3: Verify changes compile**
+
+Run: `npx tsc --noEmit`
+Expected: No errors
+
+**Step 4: Commit**
+
+```bash
+git add lib/client-converter.ts
+git commit -m "feat: add test session support to client-converter"
+```
+
+---
+
+## Task 14: Create Dev Logout Route
+
+**Files:**
+- Create: `app/api/dev/test-logout/route.ts`
+
+**Step 1: Create the dev logout route**
+
+```typescript
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+
+/**
+ * DEV ONLY: Clear test session.
+ */
+export async function GET() {
+  // Security guard: Block in production
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Test logout is disabled in production' },
+      { status: 403 }
+    );
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.delete('test-session');
+
+  return NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+}
+```
+
+**Step 2: Commit**
+
+```bash
+git add app/api/dev/test-logout/route.ts
+git commit -m "feat: add dev-only test logout route"
+```
+
+---
+
+## Task 15: Add Chrome MCP Test Script
+
+**Files:**
+- Create: `scripts/chrome-mcp-test.md`
+
+**Step 1: Create test instructions for Chrome MCP**
+
+```markdown
+# Chrome MCP Testing Guide
+
+## Prerequisites
+
+1. Dev server running: `npm run dev`
+2. `ENABLE_TEST_LOGIN=true` in `.env`
+3. Chrome MCP connected
+
+## Test Flow
+
+### 1. Login as Test User
+
+```
+navigate_page → http://localhost:3000/api/dev/test-login
+```
+
+This will:
+- Set test session cookie
+- Pre-load custom dictionary with 10 entries
+- Redirect to home page
+
+### 2. Verify Logged In State
+
+```
+take_snapshot
+```
+
+Look for:
+- Custom dict section should show "10 / 10000 組對照"
+- User should appear logged in
+
+### 3. Test Custom Dictionary Conversion
+
+Upload a file containing: `软件测试`
+
+Expected result: `軟體程式測試`
+(NOT `軟體測試` which would be the default OpenCC conversion)
+
+### 4. Test Different Encodings
+
+| Encoding | Test File | Expected |
+|----------|-----------|----------|
+| UTF-8 | `软件测试` | `軟體程式測試` |
+| GBK | GBK bytes for `软件测试` | `軟體程式測試` |
+| Big5 | Big5 bytes for `這是測試` | `這是測試` |
+
+### 5. Logout
+
+```
+navigate_page → http://localhost:3000/api/dev/test-logout
+```
+
+### Verification Checklist
+
+- [ ] Test login redirects to home page
+- [ ] Custom dict is loaded (shows 10 entries)
+- [ ] Conversion uses custom dict, not OpenCC defaults
+- [ ] UTF-8, GBK, Big5 encodings all work
+- [ ] Test logout clears session
+```
+
+**Step 2: Commit**
+
+```bash
+git add scripts/chrome-mcp-test.md
+git commit -m "docs: add Chrome MCP testing guide"
+```
+
+---
+
+## Task 16: Add Tests for Dev Login Route
+
+**Files:**
+- Create: `__tests__/api/dev/test-login.test.ts`
+
+**Step 1: Create test file**
+
+```typescript
+/**
+ * @jest-environment node
+ */
+import { GET } from '@/app/api/dev/test-login/route';
+
+// Mock next/headers
+const mockCookieSet = jest.fn();
+jest.mock('next/headers', () => ({
+  cookies: () => Promise.resolve({
+    set: mockCookieSet,
+  }),
+}));
+
+// Mock client-converter
+jest.mock('@/lib/client-converter', () => ({
+  updateDictCache: jest.fn(),
+}));
+
+describe('/api/dev/test-login', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.resetModules();
+    mockCookieSet.mockClear();
+    process.env = { ...originalEnv };
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('should return 403 in production', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.ENABLE_TEST_LOGIN = 'true';
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    const data = await response.json();
+    expect(data.error).toContain('production');
+  });
+
+  it('should return 403 when ENABLE_TEST_LOGIN is not set', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.ENABLE_TEST_LOGIN = undefined;
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    const data = await response.json();
+    expect(data.error).toContain('ENABLE_TEST_LOGIN');
+  });
+
+  it('should set session cookie and redirect when enabled', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.ENABLE_TEST_LOGIN = 'true';
+    process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000';
+
+    const response = await GET();
+
+    expect(response.status).toBe(307); // redirect
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      'test-session',
+      expect.any(String),
+      expect.objectContaining({
+        path: '/',
+      })
+    );
+  });
+});
+```
+
+**Step 2: Run tests**
+
+Run: `npx jest __tests__/api/dev/test-login.test.ts --verbose`
+Expected: PASS (3 tests)
+
+**Step 3: Commit**
+
+```bash
+git add __tests__/api/dev/test-login.test.ts
+git commit -m "test: add dev login route tests"
+```
+
+---
+
+## Updated Summary
+
+| Task | Focus |
+|------|-------|
+| 1-10 | Client-converter unit tests (~34 tests) |
+| 11 | Test user constants |
+| 12 | Dev login API route |
+| 13 | Client-converter test session support |
+| 14 | Dev logout API route |
+| 15 | Chrome MCP testing guide |
+| 16 | Dev login route tests |
+
+**Total: ~37 tests + Chrome MCP testing capability**
