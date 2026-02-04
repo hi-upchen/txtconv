@@ -4,10 +4,9 @@
 import { POST } from '@/app/api/convert/route';
 import { NextRequest } from 'next/server';
 
-// Mock the OpenCC, encoding helpers, archive, and supabase
+// Mock the OpenCC, encoding helpers, and supabase
 jest.mock('@/lib/opencc');
 jest.mock('@/lib/encoding');
-jest.mock('@/lib/archive');
 jest.mock('@/lib/supabase/server', () => ({
   createClient: jest.fn().mockRejectedValue(new Error('No request scope')),
   createServiceClient: jest.fn(),
@@ -15,7 +14,6 @@ jest.mock('@/lib/supabase/server', () => ({
 
 import { convertText, convertFileWithCustomDict } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
-import { archiveOriginalFile } from '@/lib/archive';
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -23,7 +21,6 @@ global.fetch = jest.fn();
 describe('POST /api/convert', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (archiveOriginalFile as jest.Mock).mockResolvedValue(undefined);
     // Default: convertText returns input as-is (for English text)
     (convertText as jest.Mock).mockImplementation(async (text: string) => text);
   });
@@ -333,30 +330,6 @@ describe('POST /api/convert', () => {
       const completeEvent = events.find(e => e.type === 'complete');
       expect(completeEvent).toBeDefined();
       expect(completeEvent.fileName).toContain('my-custom-file.txt');
-    });
-
-    it('should not call archiveOriginalFile when using blobUrl', async () => {
-      const blobUrl = 'https://blob.vercel-storage.com/test-file.txt';
-      const fileContent = '简体中文';
-
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        arrayBuffer: async () => new TextEncoder().encode(fileContent).buffer,
-      });
-
-      (readFileWithEncoding as jest.Mock).mockResolvedValue(fileContent);
-      (convertFileWithCustomDict as jest.Mock).mockResolvedValue('簡體中文');
-
-      const formData = createBlobFormData(blobUrl, 'test.txt');
-      const request = new NextRequest('http://localhost:3000/api/convert', {
-        method: 'POST',
-        body: formData,
-      });
-
-      await POST(request);
-
-      // Should not archive when file is already in blob
-      expect(archiveOriginalFile).not.toHaveBeenCalled();
     });
 
     it('should reject request without blobUrl or file', async () => {

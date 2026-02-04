@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { convertText, convertFileWithCustomDict } from '@/lib/opencc';
 import { readFileWithEncoding } from '@/lib/encoding';
 import { validateFile } from '@/lib/file-validator';
-import { archiveOriginalFile } from '@/lib/archive';
 import { sanitizeFilename } from '@/lib/filename-sanitizer';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { parseDictionary, getDictPairLimit, type DictPair } from '@/lib/custom-dict';
@@ -65,11 +64,6 @@ export async function POST(request: NextRequest) {
           );
           controller.close();
           return;
-        }
-
-        // Archive original file to Vercel Blob (only if not already from blob)
-        if (!blobUrl) {
-          await archiveOriginalFile(file!);
         }
 
         // Send start event
