@@ -14,7 +14,13 @@ function delay(ms: number): Promise<void> {
 }
 
 function isRateLimitError(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('Too many requests');
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('too many requests') ||
+    message.includes('rate limit') ||
+    message.includes('429')
+  );
 }
 
 async function delWithRetry(urls: string[]): Promise<void> {
@@ -24,7 +30,7 @@ async function delWithRetry(urls: string[]): Promise<void> {
       return;
     } catch (error) {
       if (isRateLimitError(error) && attempt < MAX_RETRIES) {
-        console.log(`Rate limited, waiting 30 seconds before retry (attempt ${attempt}/${MAX_RETRIES})...`);
+        console.log(`Rate limited, waiting ${RATE_LIMIT_RETRY_MS / 1000} seconds before retry (attempt ${attempt}/${MAX_RETRIES})...`);
         await delay(RATE_LIMIT_RETRY_MS);
       } else {
         throw error;
@@ -50,6 +56,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const cutoffDate = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
     let deletedCount = 0;
+    let scannedCount = 0;
     let cursor: string | undefined;
 
     // Paginate through all blobs
@@ -57,6 +64,7 @@ export async function GET(request: Request): Promise<Response> {
     do {
       pageNum++;
       const result = await list({ cursor, limit: 1000 });
+      scannedCount += result.blobs.length;
       console.log(`Scanning page ${pageNum}: ${result.blobs.length} blobs found`);
 
       // Collect URLs to delete in this batch
@@ -94,10 +102,11 @@ export async function GET(request: Request): Promise<Response> {
       cursor = result.hasMore ? result.cursor : undefined;
     } while (cursor);
 
-    console.log(`Blob cleanup: deleted ${deletedCount} files`);
+    console.log(`Blob cleanup: scanned ${scannedCount}, deleted ${deletedCount} files`);
 
     return Response.json({
       success: true,
+      scanned: scannedCount,
       deleted: deletedCount,
       cutoffDate: cutoffDate.toISOString(),
     });

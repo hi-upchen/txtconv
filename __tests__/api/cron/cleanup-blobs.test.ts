@@ -140,4 +140,140 @@ describe('GET /api/cron/cleanup-blobs', () => {
     expect(mockDel).toHaveBeenCalledTimes(2);
     expect(data.deleted).toBe(2);
   });
+
+  it('retries on rate limit error and succeeds', async () => {
+    const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
+
+    mockList.mockResolvedValueOnce({
+      blobs: [
+        { url: 'https://blob.vercel-storage.com/old.txt', pathname: 'old.txt', uploadedAt: fourDaysAgo },
+      ],
+      hasMore: false,
+      cursor: undefined,
+    } as any);
+
+    // First call fails with rate limit, second succeeds
+    mockDel
+      .mockRejectedValueOnce(new Error('Too many requests'))
+      .mockResolvedValueOnce(undefined);
+
+    const request = new Request('http://localhost/api/cron/cleanup-blobs', {
+      headers: { Authorization: 'Bearer test-secret' },
+    });
+
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockDel).toHaveBeenCalledTimes(2);
+    expect(data.deleted).toBe(1);
+  }, 35000); // Allow time for retry delay
+
+  it('retries on "rate limit" error message variant', async () => {
+    const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
+
+    mockList.mockResolvedValueOnce({
+      blobs: [
+        { url: 'https://blob.vercel-storage.com/old.txt', pathname: 'old.txt', uploadedAt: fourDaysAgo },
+      ],
+      hasMore: false,
+      cursor: undefined,
+    } as any);
+
+    // Fails with different rate limit message variant
+    mockDel
+      .mockRejectedValueOnce(new Error('rate limit exceeded'))
+      .mockResolvedValueOnce(undefined);
+
+    const request = new Request('http://localhost/api/cron/cleanup-blobs', {
+      headers: { Authorization: 'Bearer test-secret' },
+    });
+
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mockDel).toHaveBeenCalledTimes(2);
+    expect(data.deleted).toBe(1);
+  }, 35000);
+
+  it('does not retry non-rate-limit errors', async () => {
+    const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
+
+    mockList.mockResolvedValueOnce({
+      blobs: [
+        { url: 'https://blob.vercel-storage.com/old.txt', pathname: 'old.txt', uploadedAt: fourDaysAgo },
+      ],
+      hasMore: false,
+      cursor: undefined,
+    } as any);
+
+    // Fails with non-rate-limit error
+    mockDel.mockRejectedValueOnce(new Error('Network error'));
+
+    const request = new Request('http://localhost/api/cron/cleanup-blobs', {
+      headers: { Authorization: 'Bearer test-secret' },
+    });
+
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(mockDel).toHaveBeenCalledTimes(1); // No retry
+    expect(data.error).toBe('Cleanup failed');
+  });
+
+  it('fails after max retries exhausted', async () => {
+    const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
+
+    mockList.mockResolvedValueOnce({
+      blobs: [
+        { url: 'https://blob.vercel-storage.com/old.txt', pathname: 'old.txt', uploadedAt: fourDaysAgo },
+      ],
+      hasMore: false,
+      cursor: undefined,
+    } as any);
+
+    // Always fails with rate limit
+    mockDel.mockRejectedValue(new Error('Too many requests'));
+
+    const request = new Request('http://localhost/api/cron/cleanup-blobs', {
+      headers: { Authorization: 'Bearer test-secret' },
+    });
+
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(mockDel).toHaveBeenCalledTimes(3); // 3 retries max
+    expect(data.error).toBe('Cleanup failed');
+  }, 100000); // Allow time for all retries
+
+  it('includes scanned count in response', async () => {
+    const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
+    const oneDayAgo = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000);
+
+    mockList.mockResolvedValueOnce({
+      blobs: [
+        { url: 'https://blob.vercel-storage.com/old.txt', pathname: 'old.txt', uploadedAt: fourDaysAgo },
+        { url: 'https://blob.vercel-storage.com/new.txt', pathname: 'new.txt', uploadedAt: oneDayAgo },
+        { url: 'https://blob.vercel-storage.com/dict.csv', pathname: 'dictionaries/dict.csv', uploadedAt: fourDaysAgo },
+      ],
+      hasMore: false,
+      cursor: undefined,
+    } as any);
+
+    mockDel.mockResolvedValueOnce(undefined);
+
+    const request = new Request('http://localhost/api/cron/cleanup-blobs', {
+      headers: { Authorization: 'Bearer test-secret' },
+    });
+
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.scanned).toBe(3); // All blobs scanned
+    expect(data.deleted).toBe(1); // Only old non-dict deleted
+  });
 });
