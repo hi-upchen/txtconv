@@ -58,13 +58,22 @@ navigate_page → http://localhost:3000/api/dev/test-login
 
 This will:
 - Set test session cookie with mock user ID
+- UI shows logged-in state (email `test@txtconv.local` in header)
+- Custom dictionary section shows "PRO" badge with "10,000 組對照" limit
+- Dictionary editor is enabled (can edit, import, export)
+- Lifetime plan shows as "目前方案" (current plan)
 - Pre-load custom dictionary (10 entries that differ from OpenCC defaults)
-- Redirect to home page as logged-in user
 
 **Logout:**
 ```
 navigate_page → http://localhost:3000/api/dev/test-logout
 ```
+
+This will:
+- Clear test session cookie
+- UI returns to guest state ("Login" button in header)
+- Custom dictionary shows "GUEST" badge with "5 組對照" limit
+- Dictionary editor is disabled
 
 ### Test Custom Dictionary Verification
 
@@ -92,8 +101,10 @@ If you see "OpenCC Default", custom dictionary is NOT being applied.
 | `lib/client-converter.ts` | Client-side conversion logic |
 | `lib/custom-dict.ts` | Custom dictionary parsing and application |
 | `lib/test-user.ts` | Test user constants for dev testing |
+| `lib/actions/auth.ts` | Server-side auth with test session detection |
 | `components/FileUpload.tsx` | Main file upload and conversion UI |
 | `app/api/dev/test-login/route.ts` | Dev-only test login endpoint |
+| `app/api/dev/test-logout/route.ts` | Dev-only test logout endpoint |
 
 ## Encoding Detection
 
