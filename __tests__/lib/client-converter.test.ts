@@ -147,5 +147,54 @@ describe('client-converter', () => {
         expect(['GBK', 'GB18030']).toContain(result.encoding);
       });
     });
+
+    describe('Big5 encoding', () => {
+      it('should detect Big5 and decode traditional Chinese', async () => {
+        // "這是繁體中文" in Big5 encoding
+        const big5Bytes = new Uint8Array([
+          0xb3, 0x6f, // 這
+          0xac, 0x4f, // 是
+          0xc1, 0x63, // 繁
+          0xc5, 0xe9, // 體
+          0xa4, 0xa4, // 中
+          0xa4, 0xe5, // 文
+        ]);
+        const file = new File([big5Bytes], 'big5.txt', { type: 'text/plain' });
+
+        const result = await readFileWithEncoding(file);
+
+        expect(result.content).toBe('這是繁體中文');
+        expect(result.encoding).toBe('Big5');
+      });
+
+      it('should correctly distinguish Big5 from GBK using score heuristic', async () => {
+        // This is the critical test for the bug fix
+        // "這是繁體中文測試檔案。" in Big5
+        // GBK can decode these bytes but produces wrong characters
+        const big5Bytes = new Uint8Array([
+          0xb3, 0x6f, // 這
+          0xac, 0x4f, // 是
+          0xc1, 0x63, // 繁
+          0xc5, 0xe9, // 體
+          0xa4, 0xa4, // 中
+          0xa4, 0xe5, // 文
+          0xb4, 0xfa, // 測
+          0xb8, 0xf5, // 試
+          0xc0, 0xc8, // 檔
+          0xae, 0xae, // 案
+          0xa1, 0x43, // 。
+        ]);
+        const file = new File([big5Bytes], 'ambiguous.txt', { type: 'text/plain' });
+
+        const result = await readFileWithEncoding(file);
+
+        // Should pick Big5, not GBK
+        expect(result.encoding).toBe('Big5');
+        // Content should be valid Traditional Chinese, not garbled
+        expect(result.content).toContain('這是繁體中文');
+        // Should NOT contain the wrong GBK interpretation
+        expect(result.content).not.toContain('硂琌羉砰');
+      });
+    });
   });
 });
