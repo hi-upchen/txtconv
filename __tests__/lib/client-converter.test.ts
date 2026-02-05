@@ -315,5 +315,85 @@ describe('client-converter', () => {
 
       expect(result).toEqual([]);
     });
+
+    it('should truncate to 5 pairs for free license', async () => {
+      mockSupabaseSingle.mockResolvedValue({
+        data: {
+          custom_dict_url: 'https://example.com/dict.csv',
+          license_type: 'free',
+        },
+      });
+      // CSV with 10 pairs
+      const csvContent = Array.from({ length: 10 }, (_, i) => `key${i},value${i}`).join('\n');
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(csvContent),
+      });
+
+      const result = await loadUserDictionary('free-user');
+
+      expect(result).toHaveLength(5);
+    });
+
+    it('should allow up to 10000 pairs for paid license', async () => {
+      mockSupabaseSingle.mockResolvedValue({
+        data: {
+          custom_dict_url: 'https://example.com/dict.csv',
+          license_type: 'lifetime',
+        },
+      });
+      // CSV with 100 pairs
+      const csvContent = Array.from({ length: 100 }, (_, i) => `key${i},value${i}`).join('\n');
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(csvContent),
+      });
+
+      const result = await loadUserDictionary('paid-user');
+
+      expect(result).toHaveLength(100);
+    });
+
+    it('should return cached dict for same userId', async () => {
+      mockSupabaseSingle.mockResolvedValue({
+        data: {
+          custom_dict_url: 'https://example.com/dict.csv',
+          license_type: 'free',
+        },
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve('a,A'),
+      });
+
+      // First call
+      await loadUserDictionary('cache-user');
+      // Second call with same user
+      await loadUserDictionary('cache-user');
+
+      // Supabase should only be called once
+      expect(mockSupabaseFrom).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fetch fresh dict for different userId', async () => {
+      mockSupabaseSingle.mockResolvedValue({
+        data: {
+          custom_dict_url: 'https://example.com/dict.csv',
+          license_type: 'free',
+        },
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve('a,A'),
+      });
+
+      // Call with user A
+      await loadUserDictionary('user-A');
+      // Call with user B
+      await loadUserDictionary('user-B');
+
+      // Supabase should be called twice
+      expect(mockSupabaseFrom).toHaveBeenCalledTimes(2);
+    });
   });
 });
