@@ -261,4 +261,59 @@ describe('client-converter', () => {
       expect(lastCall[2]).toBe(3); // totalLines
     });
   });
+
+  describe('loadUserDictionary', () => {
+    it('should return empty array when userId is undefined', async () => {
+      const result = await loadUserDictionary(undefined);
+
+      expect(result).toEqual([]);
+      expect(mockSupabaseFrom).not.toHaveBeenCalled();
+    });
+
+    it('should return empty array when user has no custom_dict_url', async () => {
+      mockSupabaseSingle.mockResolvedValue({
+        data: { custom_dict_url: null, license_type: 'free' },
+      });
+
+      const result = await loadUserDictionary('user-123');
+
+      expect(result).toEqual([]);
+      expect(mockSupabaseFrom).toHaveBeenCalledWith('profiles');
+    });
+
+    it('should fetch and parse CSV from custom_dict_url', async () => {
+      mockSupabaseSingle.mockResolvedValue({
+        data: {
+          custom_dict_url: 'https://example.com/dict.csv',
+          license_type: 'lifetime',
+        },
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve('软件,軟體APP\n硬件,硬體設備'),
+      });
+
+      const result = await loadUserDictionary('user-123');
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ simplified: '软件', traditional: '軟體APP' });
+      expect(result[1]).toEqual({ simplified: '硬件', traditional: '硬體設備' });
+    });
+
+    it('should return empty array on fetch error', async () => {
+      mockSupabaseSingle.mockResolvedValue({
+        data: {
+          custom_dict_url: 'https://example.com/dict.csv',
+          license_type: 'free',
+        },
+      });
+      mockFetch.mockResolvedValue({
+        ok: false,
+      });
+
+      const result = await loadUserDictionary('user-456');
+
+      expect(result).toEqual([]);
+    });
+  });
 });
