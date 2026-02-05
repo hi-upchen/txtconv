@@ -1,15 +1,71 @@
 'use server';
 
+import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import type { Profile } from '@/types/user';
+import type { User } from '@supabase/supabase-js';
+import { TEST_USER_ID } from '@/lib/test-user';
 
-export async function getAuthUser() {
+/**
+ * Check if test login is enabled (dev only).
+ */
+function isTestLoginEnabled(): boolean {
+  return process.env.NODE_ENV !== 'production' && process.env.ENABLE_TEST_LOGIN === 'true';
+}
+
+/**
+ * Get test session from cookie if valid.
+ */
+async function getTestSession(): Promise<{ userId: string; email: string } | null> {
+  if (!isTestLoginEnabled()) return null;
+
+  try {
+    const cookieStore = await cookies();
+    const testSessionCookie = cookieStore.get('test-session');
+    if (!testSessionCookie) return null;
+
+    const session = JSON.parse(testSessionCookie.value);
+    if (session?.user?.id === TEST_USER_ID) {
+      return { userId: session.user.id, email: session.user.email };
+    }
+  } catch {
+    // Invalid cookie format
+  }
+  return null;
+}
+
+export async function getAuthUser(): Promise<User | null> {
+  // Check for test session first (dev only)
+  const testSession = await getTestSession();
+  if (testSession) {
+    return {
+      id: testSession.userId,
+      email: testSession.email,
+      app_metadata: {},
+      user_metadata: {},
+      aud: 'authenticated',
+      created_at: '',
+    } as User;
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   return user;
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
+  // Return mock profile for test user (dev only)
+  if (isTestLoginEnabled() && userId === TEST_USER_ID) {
+    return {
+      id: TEST_USER_ID,
+      email: 'test@txtconv.local',
+      license_type: 'lifetime',
+      custom_dict_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as Profile;
+  }
+
   const supabase = await createClient();
   const { data } = await supabase
     .from('profiles')
