@@ -2,6 +2,7 @@
 
 import { applyCustomDict, parseDictionary, type DictPair } from '@/lib/custom-dict';
 import { createClient } from '@/lib/supabase/client';
+import { TEST_USER_ID, TEST_CUSTOM_DICT_PAIRS } from '@/lib/test-user';
 
 // Lazy-loaded library instances
 let encodingLib: typeof import('encoding-japanese') | null = null;
@@ -10,6 +11,30 @@ let converterInstance: ((text: string) => string) | null = null;
 // Dictionary cache
 let cachedDictPairs: DictPair[] | null = null;
 let dictCacheUserId: string | null = null;
+
+/**
+ * Check if running with test session (dev only).
+ */
+function getTestSession(): { userId: string } | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const cookie = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('test-session='));
+
+    if (!cookie) return null;
+
+    const sessionData = JSON.parse(decodeURIComponent(cookie.split('=')[1]));
+    if (sessionData?.user?.id === TEST_USER_ID) {
+      return { userId: TEST_USER_ID };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
 
 export type ConversionStage = 'loading-libs' | 'loading-dict' | 'converting' | 'archiving' | 'complete';
 
@@ -72,6 +97,18 @@ export function clearDictCache(): void {
  * Load user's custom dictionary with caching
  */
 export async function loadUserDictionary(userId: string | undefined): Promise<DictPair[]> {
+  // Check for test session first (dev only)
+  const testSession = getTestSession();
+  if (testSession && testSession.userId === TEST_USER_ID) {
+    // Return test dictionary directly, skip Supabase
+    if (cachedDictPairs !== null && dictCacheUserId === TEST_USER_ID) {
+      return cachedDictPairs;
+    }
+    cachedDictPairs = TEST_CUSTOM_DICT_PAIRS;
+    dictCacheUserId = TEST_USER_ID;
+    return TEST_CUSTOM_DICT_PAIRS;
+  }
+
   if (!userId) return [];
 
   // Return cached dictionary if same user
