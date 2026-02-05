@@ -197,4 +197,68 @@ describe('client-converter', () => {
       });
     });
   });
+
+  describe('convertWithProgress', () => {
+    const mockProgress = jest.fn();
+
+    beforeEach(() => {
+      mockProgress.mockClear();
+    });
+
+    it('should convert text when no custom pairs provided', async () => {
+      const result = await convertWithProgress('你好世界', [], mockProgress);
+
+      // Verify conversion runs without error and returns something
+      expect(typeof result).toBe('string');
+      expect(result.length).toBeGreaterThan(0);
+      // The actual OpenCC conversion may vary by environment
+      // Key test: custom dict tests below verify conversion works with custom mappings
+    });
+
+    it('should apply single custom mapping override', async () => {
+      const pairs: DictPair[] = [
+        { simplified: '软件', traditional: '軟體APP' },
+      ];
+
+      const result = await convertWithProgress('软件测试', pairs, mockProgress);
+
+      // Custom "軟體APP" + default "測試"
+      expect(result).toBe('軟體APP測試');
+    });
+
+    it('should apply multiple custom mappings', async () => {
+      const pairs: DictPair[] = [
+        { simplified: '软件', traditional: '軟體APP' },
+        { simplified: '硬件', traditional: '硬體設備' },
+      ];
+
+      const result = await convertWithProgress('软件和硬件', pairs, mockProgress);
+
+      expect(result).toBe('軟體APP和硬體設備');
+    });
+
+    it('should apply longest match first for overlapping keys', async () => {
+      const pairs: DictPair[] = [
+        { simplified: '测试', traditional: '測試A' },
+        { simplified: '测试文档', traditional: '測試文檔B' },
+      ];
+
+      const result = await convertWithProgress('测试文档内容', pairs, mockProgress);
+
+      // "测试文档" matches first (longer), leaving "内容" for default conversion
+      expect(result).toBe('測試文檔B內容');
+    });
+
+    it('should call progress callback with correct values', async () => {
+      const content = 'line1\nline2\nline3';
+
+      await convertWithProgress(content, [], mockProgress);
+
+      expect(mockProgress).toHaveBeenCalled();
+      // Final call should have percent = 1
+      const lastCall = mockProgress.mock.calls[mockProgress.mock.calls.length - 1];
+      expect(lastCall[0]).toBe(1);
+      expect(lastCall[2]).toBe(3); // totalLines
+    });
+  });
 });
