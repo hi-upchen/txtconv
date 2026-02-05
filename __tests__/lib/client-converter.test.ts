@@ -464,4 +464,95 @@ describe('client-converter', () => {
       });
     });
   });
+
+  describe('convertFile (full pipeline)', () => {
+    const mockProgress = jest.fn();
+
+    beforeEach(() => {
+      mockProgress.mockClear();
+    });
+
+    it('should convert UTF-8 file without custom dict', async () => {
+      const content = '你好世界';
+      const file = new File([content], 'test.txt', { type: 'text/plain' });
+
+      const result = await convertFile(file, undefined, mockProgress);
+
+      expect(result.content).toBeTruthy();
+      expect(result.fileName).toBe('test.txt');
+      expect(result.encoding).toBe('UTF-8');
+    });
+
+    it('should convert GBK file with custom dict for logged-in user', async () => {
+      // Setup mock for logged-in user with custom dict
+      mockSupabaseSingle.mockResolvedValue({
+        data: {
+          custom_dict_url: 'https://example.com/dict.csv',
+          license_type: 'lifetime',
+        },
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve('测试,自訂測試'),
+      });
+
+      // GBK encoded "测试"
+      const gbkBytes = new Uint8Array([
+        0xb2, 0xe2, // 测
+        0xca, 0xd4, // 试
+      ]);
+      const file = new File([gbkBytes], 'test.txt', { type: 'text/plain' });
+
+      // Clear cache to force fresh fetch
+      clearDictCache();
+
+      const result = await convertFile(file, 'user-123', mockProgress);
+
+      expect(result.content).toBe('自訂測試');
+      expect(['GBK', 'GB18030']).toContain(result.encoding);
+    });
+
+    it('should convert Big5 file correctly', async () => {
+      // Big5 encoded "這是繁體中文" - Traditional Chinese text
+      const big5Bytes = new Uint8Array([
+        0xb3, 0x6f, // 這
+        0xac, 0x4f, // 是
+        0xc1, 0x63, // 繁
+        0xc5, 0xe9, // 體
+        0xa4, 0xa4, // 中
+        0xa4, 0xe5, // 文
+      ]);
+      const file = new File([big5Bytes], 'big5test.txt', { type: 'text/plain' });
+
+      const result = await convertFile(file, undefined, mockProgress);
+
+      // Verify encoding was detected as Big5
+      expect(result.encoding).toBe('Big5');
+      // Content should be valid Traditional Chinese
+      expect(result.content).toContain('這是繁體中文');
+    });
+
+    it('should report progress through all stages', async () => {
+      const content = '测试';
+      const file = new File([content], 'test.txt', { type: 'text/plain' });
+
+      await convertFile(file, undefined, mockProgress);
+
+      // Verify progress was called with different stages
+      const stages = mockProgress.mock.calls.map(call => call[0].stage);
+      expect(stages).toContain('loading-libs');
+      expect(stages).toContain('loading-dict');
+      expect(stages).toContain('converting');
+    });
+
+    it('should handle multi-line file conversion', async () => {
+      const content = '第一行\n第二行\n第三行';
+      const file = new File([content], 'multiline.txt', { type: 'text/plain' });
+
+      const result = await convertFile(file, undefined, mockProgress);
+
+      const lines = result.content.split('\n');
+      expect(lines).toHaveLength(3);
+    });
+  });
 });
