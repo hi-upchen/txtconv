@@ -99,5 +99,53 @@ describe('client-converter', () => {
         expect(result.encoding).toBe('UTF-8');
       });
     });
+
+    describe('GB encodings', () => {
+      it('should detect GBK and decode simplified Chinese', async () => {
+        // "简体中文" in GBK encoding
+        const gbkBytes = new Uint8Array([
+          0xbc, 0xf2, // 简
+          0xcc, 0xe5, // 体
+          0xd6, 0xd0, // 中
+          0xce, 0xc4, // 文
+        ]);
+        const file = new File([gbkBytes], 'gbk.txt', { type: 'text/plain' });
+
+        const result = await readFileWithEncoding(file);
+
+        expect(result.content).toBe('简体中文');
+        expect(['GBK', 'GB18030']).toContain(result.encoding);
+      });
+
+      it('should detect GB2312 and decode correctly', async () => {
+        // "测试" in GB2312 encoding
+        const gb2312Bytes = new Uint8Array([
+          0xb2, 0xe2, // 测
+          0xca, 0xd4, // 试
+        ]);
+        const file = new File([gb2312Bytes], 'gb2312.txt', { type: 'text/plain' });
+
+        const result = await readFileWithEncoding(file);
+
+        expect(result.content).toBe('测试');
+        expect(['GBK', 'GB2312', 'GB18030']).toContain(result.encoding);
+      });
+
+      it('should detect GB18030 and handle extended characters', async () => {
+        // "软件测试" in GB18030 (same as GBK for common chars)
+        const gb18030Bytes = new Uint8Array([
+          0xc8, 0xed, // 软
+          0xbc, 0xfe, // 件
+          0xb2, 0xe2, // 测
+          0xca, 0xd4, // 试
+        ]);
+        const file = new File([gb18030Bytes], 'gb18030.txt', { type: 'text/plain' });
+
+        const result = await readFileWithEncoding(file);
+
+        expect(result.content).toBe('软件测试');
+        expect(['GBK', 'GB18030']).toContain(result.encoding);
+      });
+    });
   });
 });
