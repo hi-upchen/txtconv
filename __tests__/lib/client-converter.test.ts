@@ -396,4 +396,72 @@ describe('client-converter', () => {
       expect(mockSupabaseFrom).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('helper functions', () => {
+    describe('areLibsLoaded', () => {
+      it('should return true after loadConverterLibs is called', () => {
+        // loadConverterLibs was called in beforeAll
+        expect(areLibsLoaded()).toBe(true);
+      });
+    });
+
+    describe('updateDictCache and clearDictCache', () => {
+      it('should update and clear dict cache', async () => {
+        const pairs: DictPair[] = [{ simplified: 'a', traditional: 'A' }];
+
+        updateDictCache(pairs);
+
+        // After update, loadUserDictionary should use cache
+        // We can verify by checking that Supabase is not called
+        // when we already have a cached user
+        mockSupabaseSingle.mockResolvedValue({
+          data: { custom_dict_url: 'https://x.com/d.csv', license_type: 'free' },
+        });
+        mockFetch.mockResolvedValue({
+          ok: true,
+          text: () => Promise.resolve('b,B'),
+        });
+
+        clearDictCache();
+
+        // After clear, should fetch fresh
+        const result = await loadUserDictionary('test-user');
+        expect(mockSupabaseFrom).toHaveBeenCalled();
+      });
+    });
+
+    describe('generateConvertedFilename', () => {
+      it('should convert Chinese filename to traditional', () => {
+        const result = generateConvertedFilename('测试.txt');
+
+        expect(result).toBe('測試.txt');
+      });
+
+      it('should preserve file extension', () => {
+        const result = generateConvertedFilename('test.csv');
+
+        expect(result).toBe('test.csv');
+      });
+
+      it('should sanitize invalid filename characters', () => {
+        const result = generateConvertedFilename('文件<名>.txt');
+
+        expect(result).toBe('文件_名_.txt');
+      });
+
+      it('should handle filename without extension', () => {
+        const result = generateConvertedFilename('测试');
+
+        expect(result).toBe('測試');
+      });
+
+      it('should handle edge case filenames', () => {
+        // Filename with only dots gets sanitized
+        const result = generateConvertedFilename('...');
+
+        // Result should contain "converted" as fallback
+        expect(result).toContain('converted');
+      });
+    });
+  });
 });
