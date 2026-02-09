@@ -11,7 +11,6 @@ import {
 import {
   trackFileUploadStarted,
   trackFileUploadCompleted,
-  trackFileUploadFailed,
   trackFileConversionStarted,
   trackFileConversionCompleted,
   trackFileConversionFailed,
