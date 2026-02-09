@@ -5,13 +5,17 @@ import { useDropzone } from 'react-dropzone';
 import { upload } from '@vercel/blob/client';
 import { validateFile } from '@/lib/file-validator';
 import {
+  convertFile as clientConvertFile,
+  type ConversionProgress,
+} from '@/lib/client-converter';
+import {
   trackFileUploadStarted,
   trackFileUploadCompleted,
-  trackFileUploadFailed,
   trackFileConversionStarted,
   trackFileConversionCompleted,
   trackFileConversionFailed,
 } from '@/lib/analytics';
+import { createClient } from '@/lib/supabase/client';
 
 export interface UploadFile {
   id: string;
@@ -196,6 +200,15 @@ export default function FileUpload() {
   const [downloadQueue, setDownloadQueue] = useState<Array<{ content: string; fileName: string }>>([]);
   const isProcessingQueue = useRef(false);
   const lastUploadMethod = useRef<'drag_drop' | 'click_select'>('click_select');
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+
+  // Get user ID on mount
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id);
+    });
+  }, []);
 
   // Process download queue one at a time
   useEffect(() => {
@@ -223,44 +236,57 @@ export default function FileUpload() {
   const convertFile = useCallback(async (uploadFile: UploadFile) => {
     const { id, file } = uploadFile;
 
-    // STEP 1: Upload to Vercel Blob with progress
-    const uploadStartTime = Date.now();
+    // Track conversion started
+    trackFileConversionStarted(file);
+    const conversionStartTime = Date.now();
+
+    // Set initial state
     setFiles((prev) =>
       prev.map((f) =>
         f.id === id
           ? {
               ...f,
-              isUploading: true,
+              isUploading: false,
+              isProcessing: true,
               uploadProgress: 0,
-              isProcessing: false,
+              convertProgress: 0,
               errMessage: null,
-              uploadStartTime,
-              isRetryable: false,  // Reset during retry
+              conversionStartTime,
+              isRetryable: false,
             }
           : f
       )
     );
 
-    let blobUrl: string;
-    try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-        onUploadProgress: ({ percentage }) => {
-          setFiles((prev) =>
-            prev.map((f) => (f.id === id ? { ...f, uploadProgress: percentage } : f))
-          );
-        },
-      });
-      blobUrl = blob.url;
+    let convertedContent: string;
+    let convertedFileName: string;
+    let inputEncoding: string;
 
-      // Track successful upload
-      const uploadDuration = Date.now() - uploadStartTime;
-      trackFileUploadCompleted(file, uploadDuration);
+    try {
+      // Run client-side conversion with progress
+      const result = await clientConvertFile(file, userId, (progress: ConversionProgress) => {
+        const displayPercent = progress.percent;
+
+        // Map stages to progress ranges for UI
+        // loading-libs: 0-10%, loading-dict: 10-15%, converting: 15-95%, archiving: 95-100%
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === id
+              ? {
+                  ...f,
+                  convertProgress: displayPercent,
+                }
+              : f
+          )
+        );
+      });
+
+      convertedContent = result.content;
+      convertedFileName = result.fileName;
+      inputEncoding = result.encoding;
     } catch (error) {
-      // Track failed upload
-      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-      trackFileUploadFailed(file, 'network_error', errorMessage);
+      const errorMessage = error instanceof Error ? error.message : 'Conversion failed';
+      trackFileConversionFailed(file, 'processing_error', errorMessage);
 
       setFiles((prev) =>
         prev.map((f) =>
@@ -270,7 +296,7 @@ export default function FileUpload() {
                 isUploading: false,
                 isProcessing: false,
                 errMessage: errorMessage,
-                isRetryable: true,  // Server errors are retryable
+                isRetryable: true,
               }
             : f
         )
@@ -278,145 +304,54 @@ export default function FileUpload() {
       return;
     }
 
-    // STEP 2a: Show "處理中" status
+    // Archive original file to Vercel Blob
     setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, isUploading: false, isProcessing: false } : f))
-    );
-
-    // STEP 2b: Prepare conversion request
-    const formData = new FormData();
-    formData.append('blobUrl', blobUrl);
-    formData.append('fileName', file.name);
-    formData.append('fileId', id);
-
-    // STEP 2c: Start conversion (triggers "轉換中")
-    const conversionStartTime = Date.now();
-
-    // Track conversion started
-    trackFileConversionStarted(file);
-
-    setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, isProcessing: true, conversionStartTime } : f))
+      prev.map((f) =>
+        f.id === id ? { ...f, convertProgress: 0.95 } : f
+      )
     );
 
     try {
-      const response = await fetch('/api/convert', {
-        method: 'POST',
-        body: formData,
+      // Track upload for archival
+      trackFileUploadStarted(file, lastUploadMethod.current);
+      const uploadStartTime = Date.now();
+
+      await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
       });
 
-      if (!response.ok) {
-        throw new Error('Conversion request failed');
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
-
-      const decoder = new TextDecoder();
-      let buffer = ''; // Buffer for incomplete SSE messages
-
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) break;
-
-        // Append chunk to buffer
-        buffer += decoder.decode(value, { stream: true });
-
-        // Split by SSE message delimiter (\n\n)
-        const messages = buffer.split('\n\n');
-
-        // Keep last incomplete message in buffer
-        buffer = messages.pop() || '';
-
-        // Process complete messages
-        for (const message of messages) {
-          const lines = message.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-
-                if (data.type === 'progress') {
-                  setFiles((prev) =>
-                    prev.map((f) => (f.id === id ? { ...f, convertProgress: data.percent } : f))
-                  );
-                } else if (data.type === 'complete') {
-                  // Track successful conversion
-                  const conversionDuration = Date.now() - conversionStartTime;
-                  const inputEncoding = data.inputEncoding || 'unknown';
-                  trackFileConversionCompleted(file, conversionDuration, inputEncoding);
-
-                  setFiles((prev) =>
-                    prev.map((f) =>
-                      f.id === id
-                        ? {
-                            ...f,
-                            isProcessing: false,
-                            convertProgress: 1.0,
-                            downloadLink: 'blob://converted',
-                            filename: data.fileName,
-                            convertedContent: data.content,
-                            inputEncoding,
-                          }
-                        : f
-                    )
-                  );
-
-                  // Add to download queue instead of downloading immediately
-                  if (data.content && data.fileName) {
-                    setDownloadQueue((prev) => [...prev, { content: data.content, fileName: data.fileName }]);
-                  }
-                } else if (data.type === 'error') {
-                  // Track failed conversion
-                  setFiles((prev) => {
-                    const currentFile = prev.find((f) => f.id === id);
-                    trackFileConversionFailed(
-                      file,
-                      'processing_error',
-                      data.message,
-                      currentFile?.inputEncoding
-                    );
-                    return prev.map((f) =>
-                      f.id === id
-                        ? {
-                            ...f,
-                            isUploading: false,
-                            isProcessing: false,
-                            errMessage: data.message,
-                            isRetryable: true,  // Server errors are retryable
-                          }
-                        : f
-                    );
-                  });
-                }
-              } catch (parseError) {
-                console.error('Failed to parse SSE message:', parseError, 'Line:', line);
-              }
-            }
-          }
-        }
-      }
+      const uploadDuration = Date.now() - uploadStartTime;
+      trackFileUploadCompleted(file, uploadDuration);
     } catch (error) {
-      // Track failed conversion (network or stream error)
-      const errorMessage = error instanceof Error ? error.message : 'Conversion failed';
-      setFiles((prev) => {
-        const currentFile = prev.find((f) => f.id === id);
-        trackFileConversionFailed(file, 'processing_error', errorMessage, currentFile?.inputEncoding);
-        return prev.map((f) =>
-          f.id === id
-            ? {
-                ...f,
-                isUploading: false,
-                isProcessing: false,
-                errMessage: errorMessage,
-                isRetryable: true,  // Server errors are retryable
-              }
-            : f
-        );
-      });
+      // Archive failure is non-fatal, just log it
+      console.error('Failed to archive file:', error);
     }
-  }, []);
+
+    // Track successful conversion
+    const conversionDuration = Date.now() - conversionStartTime;
+    trackFileConversionCompleted(file, conversionDuration, inputEncoding);
+
+    // Update state with converted file
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === id
+          ? {
+              ...f,
+              isProcessing: false,
+              convertProgress: 1.0,
+              downloadLink: 'blob://converted',
+              filename: convertedFileName,
+              convertedContent: convertedContent,
+              inputEncoding,
+            }
+          : f
+      )
+    );
+
+    // Add to download queue
+    setDownloadQueue((prev) => [...prev, { content: convertedContent, fileName: convertedFileName }]);
+  }, [userId]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles: UploadFile[] = acceptedFiles.map((file) => {
@@ -440,12 +375,9 @@ export default function FileUpload() {
 
     setFiles((prev) => [...prev, ...newFiles]);
 
-    // Auto-convert only valid files
+    // Auto-convert only valid files (client-side, no upload needed)
     newFiles.forEach((uploadFile, index) => {
       if (!uploadFile.errMessage) {
-        // Track upload started for valid files
-        trackFileUploadStarted(uploadFile.file, lastUploadMethod.current);
-
         setTimeout(() => {
           convertFile(uploadFile);
         }, index * 100); // Stagger by 100ms
