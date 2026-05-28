@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 stitchs/
 .worktrees
+
+# AI workflow artifacts (ephemeral, per user CLAUDE.md)
+.claude/plans/
+.claude/scratch/
+docs/superpowers/
