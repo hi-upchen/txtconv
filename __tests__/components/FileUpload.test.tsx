@@ -2,13 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FileUpload from '@/components/FileUpload';
-import { upload } from '@vercel/blob/client';
 import * as clientConverter from '@/lib/client-converter';
-
-// Mock Vercel Blob client
-jest.mock('@vercel/blob/client', () => ({
-  upload: jest.fn(),
-}));
 
 // Mock client-converter module
 jest.mock('@/lib/client-converter', () => ({
@@ -40,7 +34,6 @@ describe('FileUpload Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock).mockClear();
-    (upload as jest.Mock).mockClear();
     mockClick.mockClear();
     (clientConverter.convertFile as jest.Mock).mockClear();
   });
@@ -53,18 +46,6 @@ describe('FileUpload Component', () => {
 
   it('should accept file drop and auto-convert', async () => {
     const user = userEvent.setup();
-
-    // Mock blob upload for archiving
-    (upload as jest.Mock).mockImplementation(async (fileName, file, options) => {
-      if (options?.onUploadProgress) {
-        options.onUploadProgress({ percentage: 50 });
-        options.onUploadProgress({ percentage: 100 });
-      }
-      return {
-        url: 'https://blob.vercel-storage.com/test-file.txt',
-        pathname: 'test-file-abc123.txt',
-      };
-    });
 
     // Mock client-side conversion
     (clientConverter.convertFile as jest.Mock).mockImplementation(async (file, userId, onProgress) => {
@@ -101,12 +82,6 @@ describe('FileUpload Component', () => {
   it('should accept multiple files', async () => {
     const user = userEvent.setup();
 
-    // Mock blob upload for archiving
-    (upload as jest.Mock).mockResolvedValue({
-      url: 'https://blob.vercel-storage.com/file.txt',
-      pathname: 'file-abc123.txt',
-    });
-
     // Mock client-side conversions - return distinct filenames for each file
     let callCount = 0;
     (clientConverter.convertFile as jest.Mock).mockImplementation(async (file, userId, onProgress) => {
@@ -138,12 +113,6 @@ describe('FileUpload Component', () => {
 
   it('should show progress during conversion', async () => {
     const user = userEvent.setup();
-
-    // Mock blob upload
-    (upload as jest.Mock).mockResolvedValue({
-      url: 'https://blob.vercel-storage.com/file.txt',
-      pathname: 'file-abc123.txt',
-    });
 
     let resolveConversion: any;
     const conversionPromise = new Promise((resolve) => {
@@ -183,12 +152,6 @@ describe('FileUpload Component', () => {
   it('should show download button after conversion', async () => {
     const user = userEvent.setup();
 
-    // Mock blob upload for archiving
-    (upload as jest.Mock).mockResolvedValue({
-      url: 'https://blob.vercel-storage.com/file.txt',
-      pathname: 'file-abc123.txt',
-    });
-
     // Mock client-side conversion
     (clientConverter.convertFile as jest.Mock).mockImplementation(async (file, userId, onProgress) => {
       onProgress({ stage: 'loading-libs', percent: 0.1 });
@@ -223,12 +186,6 @@ describe('FileUpload Component', () => {
 
   it('should show error message on conversion failure', async () => {
     const user = userEvent.setup();
-
-    // Mock blob upload (archiving still works)
-    (upload as jest.Mock).mockResolvedValue({
-      url: 'https://blob.vercel-storage.com/file.txt',
-      pathname: 'file-abc123.txt',
-    });
 
     // Mock client-side conversion failure
     (clientConverter.convertFile as jest.Mock).mockRejectedValue(new Error('Conversion failed'));
@@ -277,10 +234,6 @@ describe('FileUpload Component', () => {
   it('should accept a 10MB file for lifetime users', async () => {
     const user = userEvent.setup();
 
-    (upload as jest.Mock).mockResolvedValue({
-      url: 'https://blob.vercel-storage.com/file.txt',
-      pathname: 'file-abc123.txt',
-    });
     (clientConverter.convertFile as jest.Mock).mockResolvedValue({
       content: '轉換後內容',
       fileName: 'novel.txt',

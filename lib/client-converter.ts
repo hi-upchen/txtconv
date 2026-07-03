@@ -36,7 +36,7 @@ function getTestSession(): { userId: string } | null {
   return null;
 }
 
-export type ConversionStage = 'loading-libs' | 'loading-dict' | 'converting' | 'archiving' | 'complete';
+export type ConversionStage = 'loading-libs' | 'loading-dict' | 'converting' | 'complete';
 
 export interface ConversionProgress {
   stage: ConversionStage;

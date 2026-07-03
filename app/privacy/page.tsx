@@ -5,8 +5,9 @@ import { getAuthUser, getProfile } from '@/lib/actions/auth';
 
 /**
  * Privacy policy page. Discloses what data the service collects
- * (account email, uploaded file archiving, analytics) and how it is
- * used; linked from the site footer and required for user trust and
+ * (account email, custom dictionary, analytics) and how it is used;
+ * files are converted entirely in the browser and never uploaded.
+ * Linked from the site footer and required for user trust and
  * payment-provider compliance.
  */
 
@@ -37,9 +38,8 @@ export default async function PrivacyPage() {
               Supabase 儲存你的電子郵件地址與登入紀錄，用於識別你的方案權益（免費版／Pro）。
             </li>
             <li>
-              <strong>上傳的檔案：</strong>簡繁轉換在你的瀏覽器內執行。為了服務品質改善與問題排查，
-              你上傳的原始檔案可能會被存檔到我們的檔案儲存空間（Vercel
-              Blob）。若你不希望檔案被保留，請來信告知，我們會協助刪除。
+              <strong>你的檔案：</strong>簡繁轉換完全在你的瀏覽器內執行，
+              檔案不會上傳到我們的伺服器，也不會被儲存或留存任何副本。
             </li>
             <li>
               <strong>自訂字典：</strong>你建立的自訂字典內容會儲存在雲端，供你跨裝置使用。
@@ -71,7 +71,7 @@ export default async function PrivacyPage() {
             <a href="mailto:hi.upchen@gmail.com" className="text-primary hover:underline">
               hi.upchen@gmail.com
             </a>{' '}
-            要求刪除你的帳號、自訂字典或已存檔的檔案，我們會在 30 天內處理完成。
+            要求刪除你的帳號或自訂字典資料，我們會在 30 天內處理完成。
           </p>
         </section>
 

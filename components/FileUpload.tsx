@@ -2,15 +2,12 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { upload } from '@vercel/blob/client';
 import { validateFile } from '@/lib/file-validator';
 import {
   convertFile as clientConvertFile,
   type ConversionProgress,
 } from '@/lib/client-converter';
 import {
-  trackFileUploadStarted,
-  trackFileUploadCompleted,
   trackFileConversionStarted,
   trackFileConversionCompleted,
   trackFileConversionFailed,
@@ -33,7 +30,6 @@ export interface UploadFile {
   isRetryable: boolean;  // true = server error, false = validation error
   upgradeAvailable?: boolean;  // rejected only by the free-tier size limit; show upgrade CTA
   convertedContent?: string;
-  uploadStartTime?: number;
   conversionStartTime?: number;
   inputEncoding?: string;
 }
@@ -211,7 +207,6 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [downloadQueue, setDownloadQueue] = useState<Array<{ content: string; fileName: string }>>([]);
   const isProcessingQueue = useRef(false);
-  const lastUploadMethod = useRef<'drag_drop' | 'click_select'>('click_select');
   const [userId, setUserId] = useState<string | undefined>(undefined);
 
   // Get user ID on mount
@@ -280,7 +275,7 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
         const displayPercent = progress.percent;
 
         // Map stages to progress ranges for UI
-        // loading-libs: 0-10%, loading-dict: 10-15%, converting: 15-95%, archiving: 95-100%
+        // loading-libs: 0-10%, loading-dict: 10-15%, converting: 15-100%
         setFiles((prev) =>
           prev.map((f) =>
             f.id === id
@@ -314,30 +309,6 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
         )
       );
       return;
-    }
-
-    // Archive original file to Vercel Blob
-    setFiles((prev) =>
-      prev.map((f) =>
-        f.id === id ? { ...f, convertProgress: 0.95 } : f
-      )
-    );
-
-    try {
-      // Track upload for archival
-      trackFileUploadStarted(file, lastUploadMethod.current);
-      const uploadStartTime = Date.now();
-
-      await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-      });
-
-      const uploadDuration = Date.now() - uploadStartTime;
-      trackFileUploadCompleted(file, uploadDuration);
-    } catch (error) {
-      // Archive failure is non-fatal, just log it
-      console.error('Failed to archive file:', error);
     }
 
     // Track successful conversion
@@ -401,9 +372,6 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     multiple: true,
-    onDragEnter: () => {
-      lastUploadMethod.current = 'drag_drop';
-    },
   });
 
   // Retry handler
