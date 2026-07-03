@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import FileUpload from '@/components/FileUpload';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -94,9 +95,9 @@ export default async function CsvLandingPage() {
               SRT 字幕簡轉繁
             </a>
             ，或回到
-            <a href="/" className="text-primary hover:underline">
+            <Link href="/" className="text-primary hover:underline">
               首頁
-            </a>
+            </Link>
             查看完整功能與方案。
           </p>
         </section>

@@ -5,7 +5,6 @@ import {
   loadConverterLibs,
   areLibsLoaded,
   readFileWithEncoding,
-  convertText,
   convertWithProgress,
   convertFile,
   loadUserDictionary,
@@ -425,7 +424,7 @@ describe('client-converter', () => {
         clearDictCache();
 
         // After clear, should fetch fresh
-        const result = await loadUserDictionary('test-user');
+        await loadUserDictionary('test-user');
         expect(mockSupabaseFrom).toHaveBeenCalled();
       });
     });

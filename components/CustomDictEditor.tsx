@@ -51,6 +51,11 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
     if (!user) return;
 
     let cancelled = false;
+    // Flip the loading flag before the fetch starts. This is a deliberate
+    // synchronous setState in an effect: the flag cannot be a useState(true)
+    // default because guests (user == null) never fetch and must not render
+    // the loading state. One extra render on mount is acceptable here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
 
     fetch('/api/dictionary')
