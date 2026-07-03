@@ -36,6 +36,8 @@ describe('FileUpload Component', () => {
     (global.fetch as jest.Mock).mockClear();
     mockClick.mockClear();
     (clientConverter.convertFile as jest.Mock).mockClear();
+    // Reset the GTM dataLayer so each test asserts only its own events
+    window.dataLayer = [];
   });
 
   it('should render upload dropzone with original text', () => {
@@ -229,6 +231,35 @@ describe('FileUpload Component', () => {
     expect(screen.getByRole('link', { name: /升級 Pro/ })).toHaveAttribute('href', '#pricing');
     // Rejected file must never start converting
     expect(clientConverter.convertFile).not.toHaveBeenCalled();
+  });
+
+  it('should push a file_rejected dataLayer event on an oversized drop', async () => {
+    const user = userEvent.setup();
+
+    render(<FileUpload licenseType="free" />);
+
+    const file = new File(['x'], 'novel.txt', { type: 'text/plain' });
+    Object.defineProperty(file, 'size', { value: 9 * 1024 * 1024 });
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (input) {
+      await user.upload(input, file);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText(/超過免費版 5MB 上限/)).toBeInTheDocument();
+    });
+
+    const rejectedEvents = window.dataLayer.filter((e) => e.event === 'file_rejected');
+    expect(rejectedEvents).toHaveLength(1);
+    expect(rejectedEvents[0]).toMatchObject({
+      event: 'file_rejected',
+      file_size: 9 * 1024 * 1024,
+      file_type: '.txt',
+      reject_reason: 'size_limit_free',
+      upgrade_available: true,
+      source_path: '/',
+    });
   });
 
   it('should accept a 10MB file for lifetime users', async () => {
