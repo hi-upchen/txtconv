@@ -1,12 +1,11 @@
 /**
  * GA4 Tracking Helper Functions
- * Centralized analytics tracking for file upload and conversion events
+ * Centralized analytics tracking for file conversion and checkout events.
+ * Conversion runs entirely in the browser; no file-upload events exist
+ * because files never leave the user's device.
  */
 
 import type {
-  FileUploadStartedEvent,
-  FileUploadCompletedEvent,
-  FileUploadFailedEvent,
   FileConversionStartedEvent,
   FileConversionCompletedEvent,
   FileConversionFailedEvent,
@@ -58,67 +57,6 @@ function sanitizeErrorMessage(error: string): string {
 function getFileExtension(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || '';
   return extension ? `.${extension}` : '';
-}
-
-/**
- * Track file upload started event
- */
-export function trackFileUploadStarted(
-  file: File,
-  uploadMethod: 'drag_drop' | 'click_select'
-): void {
-  ensureDataLayer();
-
-  const event: FileUploadStartedEvent = {
-    event: 'file_upload_started',
-    file_size: file.size,
-    file_type: getFileExtension(file.name),
-    file_name: sanitizeFilename(file.name),
-    upload_method: uploadMethod,
-  };
-
-  window.dataLayer.push(event);
-}
-
-/**
- * Track file upload completed event
- */
-export function trackFileUploadCompleted(
-  file: File,
-  uploadDurationMs: number
-): void {
-  ensureDataLayer();
-
-  const event: FileUploadCompletedEvent = {
-    event: 'file_upload_completed',
-    file_size: file.size,
-    file_type: getFileExtension(file.name),
-    file_name: sanitizeFilename(file.name),
-    upload_duration_ms: Math.round(uploadDurationMs),
-  };
-
-  window.dataLayer.push(event);
-}
-
-/**
- * Track file upload failed event
- */
-export function trackFileUploadFailed(
-  file: File,
-  errorType: 'validation_error' | 'network_error' | 'size_limit' | 'type_not_allowed',
-  errorMessage: string
-): void {
-  ensureDataLayer();
-
-  const event: FileUploadFailedEvent = {
-    event: 'file_upload_failed',
-    file_size: file.size,
-    file_type: getFileExtension(file.name),
-    error_type: errorType,
-    error_message: sanitizeErrorMessage(errorMessage),
-  };
-
-  window.dataLayer.push(event);
 }
 
 /**
