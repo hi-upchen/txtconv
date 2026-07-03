@@ -67,7 +67,11 @@ export default async function Home() {
                 .srt 電影字幕檔案
               </a>
             </p>
-            <p>.csv 資料格式</p>
+            <p>
+              <a href="/csv" className="hover:text-primary underline underline-offset-2">
+                .csv 資料格式
+              </a>
+            </p>
             <p>.xml 資料格式</p>
           </div>
 
