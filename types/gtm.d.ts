@@ -53,13 +53,31 @@ export interface FileConversionFailedEvent {
   input_encoding: string;
 }
 
+export interface BeginCheckoutEvent {
+  event: 'begin_checkout';
+  currency: string;
+  value: number;
+  item_name: string;
+  /** Page path where the buy button was clicked (e.g. "/", "/srt") */
+  source_path: string;
+}
+
+export interface UpgradeCtaClickedEvent {
+  event: 'upgrade_cta_clicked';
+  /** Which limit triggered the CTA the user clicked */
+  cta_source: 'file_size_limit' | 'dict_limit';
+  source_path: string;
+}
+
 export type DataLayerEvent =
   | FileUploadStartedEvent
   | FileUploadCompletedEvent
   | FileUploadFailedEvent
   | FileConversionStartedEvent
   | FileConversionCompletedEvent
-  | FileConversionFailedEvent;
+  | FileConversionFailedEvent
+  | BeginCheckoutEvent
+  | UpgradeCtaClickedEvent;
 
 declare global {
   interface Window {

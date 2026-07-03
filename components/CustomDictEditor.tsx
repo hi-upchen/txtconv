@@ -435,6 +435,7 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
                           （已達上限）
                           <a
                             href="#pricing"
+                            onClick={() => trackUpgradeCtaClicked('dict_limit')}
                             className="ml-1 text-primary hover:text-primary-hover font-bold underline underline-offset-2"
                           >
                             升級 Pro 解鎖 10,000 組 →

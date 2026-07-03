@@ -25,7 +25,17 @@ test('guest uploading 9MB file sees free-limit error with upgrade CTA', async ({
   // Clicking the CTA lands on the pricing section with the buy button
   await upgradeLink.click();
   await expect(page.locator('#pricing')).toBeInViewport();
-  await expect(page.getByRole('link', { name: /立即購買/ })).toBeVisible();
+  const buyButton = page.getByRole('link', { name: /立即購買/ });
+  await expect(buyButton).toBeVisible();
+
+  // Funnel events reach the GTM dataLayer
+  await buyButton.click();
+  const events = await page.evaluate(() =>
+    (window as unknown as { dataLayer: Array<{ event: string }> }).dataLayer
+      .map((e) => e.event)
+  );
+  expect(events).toContain('upgrade_cta_clicked');
+  expect(events).toContain('begin_checkout');
 });
 
 test('converter works on the /srt landing page', async ({ page }) => {
