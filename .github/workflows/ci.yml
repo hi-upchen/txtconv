@@ -8,6 +8,12 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      # Placeholder values so `next build` can prerender pages that construct
+      # a Supabase client (e.g. /auth/auth-code-error). No real backend is
+      # contacted during build or unit tests; production values live in Vercel.
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
     steps:
       - uses: actions/checkout@v4
 
