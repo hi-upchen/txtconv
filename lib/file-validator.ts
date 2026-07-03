@@ -37,9 +37,23 @@ export const BLOCKED_EXTENSIONS = [
   '.mp3', '.wav', '.flac', '.aac', '.ogg',
 ];
 
+/**
+ * Machine-readable rejection cause, used for analytics (`file_rejected`
+ * dataLayer event). 'size_limit_free' means the free 5MB limit was hit
+ * but a Pro plan would accept the file; 'size_limit_pro' means the file
+ * exceeds the 100MB hard ceiling of every plan.
+ */
+export type FileRejectReason =
+  | 'size_limit_free'
+  | 'size_limit_pro'
+  | 'blocked_type'
+  | 'empty';
+
 export interface ValidationResult {
   valid: boolean;
   error?: string;
+  /** Machine-readable rejection cause; set on every rejection of a real file. */
+  reason?: FileRejectReason;
   /**
    * Set when the file was rejected only because of the free-tier size
    * limit; lets the UI show an upgrade call-to-action instead of a
@@ -55,7 +69,8 @@ export interface ValidationResult {
  * @param file - File to validate
  * @param licenseType - User's license tier; guests count as 'free'
  * @returns Validation result; `upgradeAvailable` is true when a larger
- *   plan would have accepted the file
+ *   plan would have accepted the file, and `reason` carries the
+ *   machine-readable rejection cause for analytics
  */
 export function validateFile(file: File, licenseType: LicenseType = 'free'): ValidationResult {
   // Check if file exists
@@ -65,7 +80,7 @@ export function validateFile(file: File, licenseType: LicenseType = 'free'): Val
 
   // Check size
   if (file.size === 0) {
-    return { valid: false, error: 'File is empty' };
+    return { valid: false, error: 'File is empty', reason: 'empty' };
   }
 
   // Check file size limit for the user's tier
@@ -77,11 +92,13 @@ export function validateFile(file: File, licenseType: LicenseType = 'free'): Val
       ? {
           valid: false,
           error: `檔案 ${sizeMB}MB 超過免費版 5MB 上限`,
+          reason: 'size_limit_free',
           upgradeAvailable: true,
         }
       : {
           valid: false,
           error: `檔案 ${sizeMB}MB 超過 ${isFreeTier ? '5' : '100'}MB 上限`,
+          reason: 'size_limit_pro',
         };
   }
 
@@ -93,6 +110,7 @@ export function validateFile(file: File, licenseType: LicenseType = 'free'): Val
     return {
       valid: false,
       error: 'Please upload text files only.',
+      reason: 'blocked_type',
     };
   }
 

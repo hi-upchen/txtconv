@@ -18,6 +18,19 @@ test('guest uploading 9MB file sees free-limit error with upgrade CTA', async ({
 
   await expect(page.getByText(/超過免費版 5MB 上限/)).toBeVisible();
 
+  // The rejection itself must be measurable: a file_rejected event with
+  // the free-limit reason reaches the GTM dataLayer.
+  const rejectedEvents = await page.evaluate(() =>
+    (window as unknown as { dataLayer: Array<Record<string, unknown>> }).dataLayer
+      .filter((e) => e.event === 'file_rejected')
+  );
+  expect(rejectedEvents).toHaveLength(1);
+  expect(rejectedEvents[0]).toMatchObject({
+    reject_reason: 'size_limit_free',
+    upgrade_available: true,
+    source_path: '/',
+  });
+
   const upgradeLink = page.getByRole('link', { name: /升級 Pro 可轉換 100MB/ });
   await expect(upgradeLink).toBeVisible();
   await expect(upgradeLink).toHaveAttribute('href', '#pricing');

@@ -29,6 +29,18 @@ export interface FileConversionFailedEvent {
   input_encoding: string;
 }
 
+export interface FileRejectedEvent {
+  event: 'file_rejected';
+  file_size: number;
+  file_type: string;
+  /** Machine-readable rejection cause from the file validator */
+  reject_reason: 'size_limit_free' | 'size_limit_pro' | 'blocked_type' | 'empty';
+  /** True when a larger paid plan would have accepted the file */
+  upgrade_available: boolean;
+  /** Page path where the rejection happened (e.g. "/", "/srt") */
+  source_path: string;
+}
+
 export interface BeginCheckoutEvent {
   event: 'begin_checkout';
   currency: string;
@@ -49,6 +61,7 @@ export type DataLayerEvent =
   | FileConversionStartedEvent
   | FileConversionCompletedEvent
   | FileConversionFailedEvent
+  | FileRejectedEvent
   | BeginCheckoutEvent
   | UpgradeCtaClickedEvent;
 

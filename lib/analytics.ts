@@ -9,6 +9,7 @@ import type {
   FileConversionStartedEvent,
   FileConversionCompletedEvent,
   FileConversionFailedEvent,
+  FileRejectedEvent,
   BeginCheckoutEvent,
   UpgradeCtaClickedEvent,
 } from '@/types/gtm';
@@ -117,6 +118,36 @@ export function trackFileConversionFailed(
     error_type: errorType,
     error_message: sanitizeErrorMessage(errorMessage),
     input_encoding: inputEncoding,
+  };
+
+  window.dataLayer.push(event);
+}
+
+/**
+ * Track a file rejected by pre-conversion validation (size limit,
+ * blocked type, or empty file). The free 5MB size rejection is the
+ * exact moment upgrade necessity appears, so this event makes the
+ * paywall step of the funnel measurable in GA4.
+ *
+ * @param file - The rejected file (only size and extension are sent)
+ * @param reason - Machine-readable rejection cause from the validator
+ * @param upgradeAvailable - True when a larger paid plan would have
+ *   accepted the file
+ */
+export function trackFileRejected(
+  file: File,
+  reason: FileRejectedEvent['reject_reason'],
+  upgradeAvailable: boolean
+): void {
+  ensureDataLayer();
+
+  const event: FileRejectedEvent = {
+    event: 'file_rejected',
+    file_size: file.size,
+    file_type: getFileExtension(file.name),
+    reject_reason: reason,
+    upgrade_available: upgradeAvailable,
+    source_path: window.location.pathname,
   };
 
   window.dataLayer.push(event);

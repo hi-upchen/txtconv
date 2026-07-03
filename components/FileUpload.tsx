@@ -11,6 +11,7 @@ import {
   trackFileConversionStarted,
   trackFileConversionCompleted,
   trackFileConversionFailed,
+  trackFileRejected,
   trackUpgradeCtaClicked,
 } from '@/lib/analytics';
 import { createClient } from '@/lib/supabase/client';
@@ -340,6 +341,17 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
     const newFiles: UploadFile[] = acceptedFiles.map((file) => {
       // Validate file using shared validator
       const validation = validateFile(file, licenseType);
+
+      // Report rejections to GA4 — the free 5MB rejection is the funnel's
+      // paywall moment. Falls back to 'blocked_type' for legacy results
+      // without a machine-readable reason.
+      if (!validation.valid) {
+        trackFileRejected(
+          file,
+          validation.reason ?? 'blocked_type',
+          validation.upgradeAvailable === true
+        );
+      }
 
       return {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

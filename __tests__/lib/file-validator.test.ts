@@ -37,17 +37,19 @@ describe('validateFile size limits', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('rejects a 10MB file for free tier with upgrade flag', () => {
+  it('rejects a 10MB file for free tier with upgrade flag and size_limit_free reason', () => {
     const result = validateFile(makeFile('novel.txt', 10 * 1024 * 1024), 'free');
     expect(result.valid).toBe(false);
     expect(result.upgradeAvailable).toBe(true);
     expect(result.error).toContain('5MB');
+    expect(result.reason).toBe('size_limit_free');
   });
 
-  it('rejects a file over 100MB for free tier without upgrade flag', () => {
+  it('rejects a file over 100MB for free tier without upgrade flag (size_limit_pro reason)', () => {
     const result = validateFile(makeFile('huge.txt', 120 * 1024 * 1024), 'free');
     expect(result.valid).toBe(false);
     expect(result.upgradeAvailable).toBeUndefined();
+    expect(result.reason).toBe('size_limit_pro');
   });
 
   it('accepts a 10MB file for lifetime tier', () => {
@@ -55,23 +57,32 @@ describe('validateFile size limits', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('rejects a file over 100MB for lifetime tier without upgrade flag', () => {
+  it('rejects a file over 100MB for lifetime tier without upgrade flag (size_limit_pro reason)', () => {
     const result = validateFile(makeFile('huge.txt', 120 * 1024 * 1024), 'lifetime');
     expect(result.valid).toBe(false);
     expect(result.upgradeAvailable).toBeUndefined();
     expect(result.error).toContain('100MB');
+    expect(result.reason).toBe('size_limit_pro');
   });
 
-  it('rejects empty files', () => {
+  it('rejects empty files with empty reason', () => {
     const result = validateFile(makeFile('empty.txt', 0));
     expect(result.valid).toBe(false);
+    expect(result.reason).toBe('empty');
+  });
+
+  it('leaves reason unset on valid files', () => {
+    const result = validateFile(makeFile('ok.txt', 1024));
+    expect(result.valid).toBe(true);
+    expect(result.reason).toBeUndefined();
   });
 });
 
 describe('validateFile format blocking', () => {
-  it('rejects blocked extensions regardless of tier', () => {
+  it('rejects blocked extensions regardless of tier with blocked_type reason', () => {
     const result = validateFile(makeFile('movie.mp4', 1024), 'lifetime');
     expect(result.valid).toBe(false);
+    expect(result.reason).toBe('blocked_type');
   });
 
   it('accepts srt subtitle files', () => {
