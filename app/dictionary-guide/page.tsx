@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getAuthUser, getProfile } from '@/lib/actions/auth';
@@ -82,18 +83,18 @@ export default async function DictionaryGuidePage() {
             與一般簡繁轉換工具最大的差異。
           </p>
           <div className="flex flex-wrap gap-3">
-            <a
+            <Link
               href="/#dictionary"
               className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors"
             >
               開始使用自訂字典
-            </a>
-            <a
+            </Link>
+            <Link
               href="/#pricing"
               className="px-6 py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors"
             >
               查看方案與價格
-            </a>
+            </Link>
           </div>
         </section>
 
@@ -156,9 +157,9 @@ export default async function DictionaryGuidePage() {
               CSV 簡轉繁
             </a>
             ，或回到
-            <a href="/" className="text-primary hover:underline">
+            <Link href="/" className="text-primary hover:underline">
               首頁
-            </a>
+            </Link>
             。
           </p>
         </section>
@@ -170,9 +171,9 @@ export default async function DictionaryGuidePage() {
             組對照，足夠固定幾個主要人名；需要整理大量術語表的話，Pro
             版（終身授權）支援最多 10,000 組，並可用 CSV 一次匯入整份對照表。
           </p>
-          <a href="/#pricing" className="inline-block text-primary hover:underline font-medium">
+          <Link href="/#pricing" className="inline-block text-primary hover:underline font-medium">
             查看 Pro 方案 →
-          </a>
+          </Link>
         </section>
 
         <section className="space-y-4">
