@@ -9,6 +9,12 @@
 interface FaqItem {
   question: string;
   answer: string;
+  /**
+   * Optional "learn more" link rendered after the answer text. Kept out of
+   * `answer` on purpose: the FAQPage JSON-LD reuses `answer` and must stay
+   * plain text, while the visible accordion can carry an inline link.
+   */
+  moreLink?: { href: string; label: string };
 }
 
 const FAQ_ITEMS: FaqItem[] = [
@@ -41,6 +47,7 @@ const FAQ_ITEMS: FaqItem[] = [
     question: '自訂字典是什麼？什麼情況會用到？',
     answer:
       '自訂字典讓你指定「某個簡體詞一律轉成某個繁體詞」，優先於預設轉換規則。常見用途：小說人名、地名、專有名詞（避免被逐字轉錯）、公司內部術語、字幕翻譯風格統一。格式很簡單：每行一組「簡體詞,繁體詞」，也支援匯入與匯出。',
+    moreLink: { href: '/dictionary-guide', label: '完整教學：自訂字典使用指南 →' },
   },
   {
     question: '和 ConvertZ / ConvertZZ 這類軟體有什麼不同？',
@@ -86,6 +93,14 @@ export default function FaqSection() {
             </summary>
             <p className="mt-3 text-sm leading-relaxed text-gray-600">
               {item.answer}
+              {item.moreLink && (
+                <>
+                  {' '}
+                  <a href={item.moreLink.href} className="text-primary hover:underline">
+                    {item.moreLink.label}
+                  </a>
+                </>
+              )}
             </p>
           </details>
         ))}
