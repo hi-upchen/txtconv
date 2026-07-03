@@ -1,9 +1,26 @@
 /**
- * File validation utilities
+ * File validation utilities. Size limits are license-tier aware so the
+ * enforced limits match the advertised pricing (Free 5MB / Pro 100MB);
+ * validation runs client-side before conversion starts.
  */
 
-// Validation constants
-export const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+import type { LicenseType } from '@/types/user';
+
+// Size limit per license tier, matching the published pricing plans.
+export const FREE_MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+export const PRO_MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
+/**
+ * Returns the maximum allowed file size in bytes for a license tier.
+ *
+ * @param licenseType - User's license tier; guests count as 'free'
+ * @returns Size limit in bytes (5MB free, 100MB monthly/lifetime)
+ */
+export function getMaxFileSize(licenseType: LicenseType = 'free'): number {
+  return licenseType === 'lifetime' || licenseType === 'monthly'
+    ? PRO_MAX_FILE_SIZE
+    : FREE_MAX_FILE_SIZE;
+}
 
 // Block common video and office file extensions
 export const BLOCKED_EXTENSIONS = [
@@ -23,14 +40,24 @@ export const BLOCKED_EXTENSIONS = [
 export interface ValidationResult {
   valid: boolean;
   error?: string;
+  /**
+   * Set when the file was rejected only because of the free-tier size
+   * limit; lets the UI show an upgrade call-to-action instead of a
+   * plain error.
+   */
+  upgradeAvailable?: boolean;
 }
 
 /**
- * Validate uploaded file
+ * Validate uploaded file against format rules and the size limit of
+ * the user's license tier.
+ *
  * @param file - File to validate
- * @returns Validation result
+ * @param licenseType - User's license tier; guests count as 'free'
+ * @returns Validation result; `upgradeAvailable` is true when a larger
+ *   plan would have accepted the file
  */
-export function validateFile(file: File): ValidationResult {
+export function validateFile(file: File, licenseType: LicenseType = 'free'): ValidationResult {
   // Check if file exists
   if (!file) {
     return { valid: false, error: 'No file provided' };
@@ -41,12 +68,21 @@ export function validateFile(file: File): ValidationResult {
     return { valid: false, error: 'File is empty' };
   }
 
-  // Check file size limit
-  if (file.size > MAX_FILE_SIZE) {
-    return {
-      valid: false,
-      error: `File exceeds 25MB limit (${(file.size / 1024 / 1024).toFixed(2)}MB)`,
-    };
+  // Check file size limit for the user's tier
+  const maxSize = getMaxFileSize(licenseType);
+  if (file.size > maxSize) {
+    const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+    const isFreeTier = maxSize === FREE_MAX_FILE_SIZE;
+    return isFreeTier && file.size <= PRO_MAX_FILE_SIZE
+      ? {
+          valid: false,
+          error: `檔案 ${sizeMB}MB 超過免費版 5MB 上限`,
+          upgradeAvailable: true,
+        }
+      : {
+          valid: false,
+          error: `檔案 ${sizeMB}MB 超過 ${isFreeTier ? '5' : '100'}MB 上限`,
+        };
   }
 
   // Block video and office files

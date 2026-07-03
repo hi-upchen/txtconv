@@ -430,7 +430,17 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
                   <div className="flex items-center justify-between text-xs">
                     <span className={isOverLimit || isAtLimit ? 'text-red-500 font-medium' : 'text-gray-400'}>
                       {pairCount} / {limit.toLocaleString()} 組對照
-                      {(isOverLimit || isAtLimit) && !isPaid && '（已達上限）'}
+                      {(isOverLimit || isAtLimit) && !isPaid && (
+                        <>
+                          （已達上限）
+                          <a
+                            href="#pricing"
+                            className="ml-1 text-primary hover:text-primary-hover font-bold underline underline-offset-2"
+                          >
+                            升級 Pro 解鎖 10,000 組 →
+                          </a>
+                        </>
+                      )}
                     </span>
                     <span className="text-gray-400">格式：簡體詞,繁體詞</span>
                   </div>

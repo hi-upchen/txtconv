@@ -14,7 +14,7 @@ export default function PricingSection({
   const isCurrent = (tier: LicenseType) => licenseType === tier;
 
   return (
-    <section className="py-8">
+    <section id="pricing" className="py-8 scroll-mt-8">
       <h3 className="text-3xl font-bold text-center text-gray-800 mb-12">方案價格</h3>
 
       <div className="grid md:grid-cols-3 gap-6">

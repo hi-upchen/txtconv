@@ -16,6 +16,7 @@ import {
   trackFileConversionFailed,
 } from '@/lib/analytics';
 import { createClient } from '@/lib/supabase/client';
+import type { LicenseType } from '@/types/user';
 
 export interface UploadFile {
   id: string;
@@ -29,6 +30,7 @@ export interface UploadFile {
   size: number;
   errMessage: string | null;
   isRetryable: boolean;  // true = server error, false = validation error
+  upgradeAvailable?: boolean;  // rejected only by the free-tier size limit; show upgrade CTA
   convertedContent?: string;
   uploadStartTime?: number;
   conversionStartTime?: number;
@@ -150,9 +152,17 @@ function FileRow({
             {statusText}
           </div>
         ) : isFailed ? (
-          <div className="text-xs text-red-500 font-medium flex items-center gap-1.5">
+          <div className="text-xs text-red-500 font-medium flex items-center gap-1.5 flex-wrap">
             <span className="material-symbols-outlined text-[14px]">error</span>
-            {statusText}
+            <span>{store.errMessage || statusText}</span>
+            {store.upgradeAvailable && (
+              <a
+                href="#pricing"
+                className="text-primary hover:text-primary-hover font-bold underline underline-offset-2"
+              >
+                升級 Pro 可轉換 100MB →
+              </a>
+            )}
           </div>
         ) : (
           <div className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
@@ -195,7 +205,7 @@ function FileRow({
   );
 }
 
-export default function FileUpload() {
+export default function FileUpload({ licenseType = 'free' }: { licenseType?: LicenseType }) {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [downloadQueue, setDownloadQueue] = useState<Array<{ content: string; fileName: string }>>([]);
   const isProcessingQueue = useRef(false);
@@ -356,7 +366,7 @@ export default function FileUpload() {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles: UploadFile[] = acceptedFiles.map((file) => {
       // Validate file using shared validator
-      const validation = validateFile(file);
+      const validation = validateFile(file, licenseType);
 
       return {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -370,6 +380,7 @@ export default function FileUpload() {
         size: file.size,
         errMessage: validation.valid ? null : validation.error || 'Invalid file',
         isRetryable: false,  // Validation errors are never retryable
+        upgradeAvailable: validation.upgradeAvailable,
       };
     });
 
@@ -383,7 +394,7 @@ export default function FileUpload() {
         }, index * 100); // Stagger by 100ms
       }
     });
-  }, [convertFile]);
+  }, [convertFile, licenseType]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
