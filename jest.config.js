@@ -7,6 +7,9 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
+  // Playwright specs live in e2e/ and must not run under jest — they import
+  // @playwright/test, whose runner conflicts with jest's and fails the suite.
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/', '<rootDir>/e2e/'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '^opencc-js$': '<rootDir>/lib/__mocks__/opencc-js.ts',

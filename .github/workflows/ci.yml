@@ -1,0 +1,32 @@
+# CI gate for pull requests: install, build, and run the jest suite.
+# Deploys are handled by Vercel on merge to master, so no deploy steps here.
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    env:
+      # Placeholder values so `next build` can prerender pages that construct
+      # a Supabase client (e.g. /auth/auth-code-error). No real backend is
+      # contacted during build or unit tests; production values live in Vercel.
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests
+        run: npx jest --ci
