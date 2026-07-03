@@ -78,7 +78,13 @@ export default async function NovelLandingPage() {
           <ul className="list-disc pl-6 space-y-2 text-gray-600">
             <li>亂碼救援：自動判斷來源編碼，不用自己猜是 GBK 還是 Big5</li>
             <li>台灣用語：OpenCC 詞庫轉換，不是逐字替換，讀起來自然</li>
-            <li>自訂字典：人名、地名、招式名可固定譯法，整套書一致</li>
+            <li>
+              自訂字典：人名、地名、招式名可固定譯法，整套書一致（
+              <a href="/dictionary-guide" className="text-primary hover:underline">
+                自訂字典使用教學
+              </a>
+              ）
+            </li>
             <li>免安裝：瀏覽器就能用，Mac 也不用找 ConvertZ 替代品</li>
           </ul>
           <p className="text-gray-600">

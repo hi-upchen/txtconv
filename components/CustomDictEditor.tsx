@@ -245,7 +245,10 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
   const saveButton = getSaveButtonState();
 
   return (
-    <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <section
+      id="dictionary"
+      className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden scroll-mt-8"
+    >
       {/* Header */}
       <button
         type="button"
