@@ -10,6 +10,14 @@ export default function Footer() {
             © 出走工程師 Up
           </span>
 
+          {/* Legal pages */}
+          <a href="/privacy" className="hover:text-gray-600 transition-colors">
+            隱私權政策
+          </a>
+          <a href="/terms" className="hover:text-gray-600 transition-colors">
+            服務條款
+          </a>
+
           {/* Donate */}
           <a
             href="https://upchen.gumroad.com/l/txtconv?utm_source=txtconv&utm_medium=website&utm_content=footer"
