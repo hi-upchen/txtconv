@@ -28,6 +28,19 @@ test('guest uploading 9MB file sees free-limit error with upgrade CTA', async ({
   await expect(page.getByRole('link', { name: /立即購買/ })).toBeVisible();
 });
 
+test('converter works on the /srt landing page', async ({ page }) => {
+  await page.goto('/srt');
+
+  const srtFile = {
+    name: 'subs.srt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('1\n00:00:01,000 --> 00:00:03,500\n简体软件测试\n'),
+  };
+  await page.setInputFiles('input[type="file"]', srtFile);
+
+  await expect(page.getByText('Finished')).toBeVisible({ timeout: 30000 });
+});
+
 test('small file converts normally for guests', async ({ page }) => {
   await page.goto('/');
 

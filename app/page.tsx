@@ -31,8 +31,16 @@ export default async function Home() {
           </p>
           <div className="space-y-1 text-sm text-gray-500">
             <p>支援檔案格式為：</p>
-            <p>.txt 純文字小說檔案</p>
-            <p>.srt 電影字幕檔案</p>
+            <p>
+              <a href="/novel" className="hover:text-primary underline underline-offset-2">
+                .txt 純文字小說檔案
+              </a>
+            </p>
+            <p>
+              <a href="/srt" className="hover:text-primary underline underline-offset-2">
+                .srt 電影字幕檔案
+              </a>
+            </p>
             <p>.csv 資料格式</p>
             <p>.xml 資料格式</p>
           </div>
