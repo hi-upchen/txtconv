@@ -242,14 +242,63 @@ describe('FileUpload Component', () => {
       await user.upload(input, file);
     }
 
-    // Should show "Failed" status
+    // Should show the actual error message (more useful than a bare "Failed" label)
     await waitFor(() => {
-      expect(screen.getByText('Failed')).toBeInTheDocument();
+      expect(screen.getByText('Conversion failed')).toBeInTheDocument();
     });
 
     // Should have retry button
     await waitFor(() => {
       expect(screen.getByText('refresh')).toBeInTheDocument();
+    });
+  });
+
+  it('should reject files over the free 5MB limit with an upgrade link', async () => {
+    const user = userEvent.setup();
+
+    render(<FileUpload licenseType="free" />);
+
+    const file = new File(['x'], 'novel.txt', { type: 'text/plain' });
+    Object.defineProperty(file, 'size', { value: 10 * 1024 * 1024 });
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (input) {
+      await user.upload(input, file);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText(/超過免費版 5MB 上限/)).toBeInTheDocument();
+    });
+    expect(screen.getByRole('link', { name: /升級 Pro/ })).toHaveAttribute('href', '#pricing');
+    // Rejected file must never start converting
+    expect(clientConverter.convertFile).not.toHaveBeenCalled();
+  });
+
+  it('should accept a 10MB file for lifetime users', async () => {
+    const user = userEvent.setup();
+
+    (upload as jest.Mock).mockResolvedValue({
+      url: 'https://blob.vercel-storage.com/file.txt',
+      pathname: 'file-abc123.txt',
+    });
+    (clientConverter.convertFile as jest.Mock).mockResolvedValue({
+      content: '轉換後內容',
+      fileName: 'novel.txt',
+      encoding: 'UTF8',
+    });
+
+    render(<FileUpload licenseType="lifetime" />);
+
+    const file = new File(['x'], 'novel.txt', { type: 'text/plain' });
+    Object.defineProperty(file, 'size', { value: 10 * 1024 * 1024 });
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (input) {
+      await user.upload(input, file);
+    }
+
+    await waitFor(() => {
+      expect(clientConverter.convertFile).toHaveBeenCalled();
     });
   });
 });

@@ -39,7 +39,7 @@ export default async function Home() {
         </section>
 
         {/* File Upload Section */}
-        <FileUpload />
+        <FileUpload licenseType={profile?.license_type ?? 'free'} />
 
         <CustomDictEditor user={user} profile={profile} />
 
