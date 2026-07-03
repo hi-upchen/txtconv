@@ -1,5 +1,6 @@
 'use client';
 
+import { trackBeginCheckout } from '@/lib/analytics';
 import type { LicenseType } from '@/types/user';
 
 interface PricingSectionProps {
@@ -127,6 +128,7 @@ export default function PricingSection({
               href={gumroadUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackBeginCheckout(30, 'lifetime')}
               className="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               立即購買 →

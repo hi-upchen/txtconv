@@ -14,6 +14,7 @@ import {
   trackFileConversionStarted,
   trackFileConversionCompleted,
   trackFileConversionFailed,
+  trackUpgradeCtaClicked,
 } from '@/lib/analytics';
 import { createClient } from '@/lib/supabase/client';
 import type { LicenseType } from '@/types/user';
@@ -158,6 +159,7 @@ function FileRow({
             {store.upgradeAvailable && (
               <a
                 href="#pricing"
+                onClick={() => trackUpgradeCtaClicked('file_size_limit')}
                 className="text-primary hover:text-primary-hover font-bold underline underline-offset-2"
               >
                 升級 Pro 可轉換 100MB →

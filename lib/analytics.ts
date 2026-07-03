@@ -10,6 +10,8 @@ import type {
   FileConversionStartedEvent,
   FileConversionCompletedEvent,
   FileConversionFailedEvent,
+  BeginCheckoutEvent,
+  UpgradeCtaClickedEvent,
 } from '@/types/gtm';
 
 /**
@@ -177,6 +179,49 @@ export function trackFileConversionFailed(
     error_type: errorType,
     error_message: sanitizeErrorMessage(errorMessage),
     input_encoding: inputEncoding,
+  };
+
+  window.dataLayer.push(event);
+}
+
+/**
+ * Track a click on a "buy" button that hands off to Gumroad checkout.
+ * Fired before navigation; measures how many visitors reach checkout,
+ * which pages drive purchases, and (vs. Gumroad sales) checkout drop-off.
+ *
+ * @param value - Price shown to the user (USD)
+ * @param itemName - Product/plan name (e.g. "lifetime")
+ */
+export function trackBeginCheckout(value: number, itemName: string): void {
+  ensureDataLayer();
+
+  const event: BeginCheckoutEvent = {
+    event: 'begin_checkout',
+    currency: 'USD',
+    value,
+    item_name: itemName,
+    source_path: window.location.pathname,
+  };
+
+  window.dataLayer.push(event);
+}
+
+/**
+ * Track a click on an in-context upgrade call-to-action (shown when a
+ * free-tier limit is hit). Measures which limit actually drives
+ * upgrade intent.
+ *
+ * @param ctaSource - Which limit surfaced the CTA
+ */
+export function trackUpgradeCtaClicked(
+  ctaSource: 'file_size_limit' | 'dict_limit'
+): void {
+  ensureDataLayer();
+
+  const event: UpgradeCtaClickedEvent = {
+    event: 'upgrade_cta_clicked',
+    cta_source: ctaSource,
+    source_path: window.location.pathname,
   };
 
   window.dataLayer.push(event);
