@@ -1,4 +1,5 @@
 import CustomDictEditor from '@/components/CustomDictEditor';
+import FaqSection from '@/components/FaqSection';
 import FileUpload from '@/components/FileUpload';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
@@ -45,6 +46,29 @@ export default async function Home() {
         <PricingSection
           gumroadUrl={process.env.NEXT_PUBLIC_GUMROAD_URL || 'https://gumroad.com'}
           licenseType={profile?.license_type ?? 'free'}
+        />
+
+        <FaqSection />
+
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'WebApplication',
+              name: 'txtconv',
+              url: 'https://txtconv.arpuli.com',
+              applicationCategory: 'UtilitiesApplication',
+              operatingSystem: 'Web',
+              description:
+                '線上簡轉繁工具：將 .txt 小說、.srt 字幕、.csv、.xml 檔案從簡體中文轉換成台灣繁體中文，自動偵測編碼並支援自訂字典。',
+              inLanguage: 'zh-TW',
+              offers: [
+                { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD' },
+                { '@type': 'Offer', name: 'Lifetime', price: '30', priceCurrency: 'USD' },
+              ],
+            }),
+          }}
         />
       </main>
 
