@@ -29,6 +29,32 @@ export default async function Home() {
           <p className="text-lg text-gray-600 max-w-4xl">
             線上免費將剪映 Capcut 字幕、小說、電子書、CSV 等文字檔從簡體轉換成繁體中文，支援批次轉換。
           </p>
+
+          {/* Trust row: three quick reassurances shown right under the hero copy.
+              Kept as a lightweight icon+text row (not a card section) so it
+              supports the conversion decision without pushing the uploader
+              below the fold. */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-gray-600">
+            <span className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-primary text-lg" aria-hidden="true">
+                check_circle
+              </span>
+              免費使用
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-primary text-lg" aria-hidden="true">
+                devices
+              </span>
+              免安裝、瀏覽器內完成
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-primary text-lg" aria-hidden="true">
+                manage_search
+              </span>
+              自動偵測編碼
+            </span>
+          </div>
+
           <div className="space-y-1 text-sm text-gray-500">
             <p>支援檔案格式為：</p>
             <p>
@@ -44,6 +70,29 @@ export default async function Home() {
             <p>.csv 資料格式</p>
             <p>.xml 資料格式</p>
           </div>
+
+          {/* Social proof: real third-party coverage only — do not add outlets
+              that have not actually reviewed txtconv. */}
+          <p className="text-sm text-gray-400">
+            媒體報導：
+            <a
+              href="https://briian.com/27849/txtconv.html"
+              target="_blank"
+              rel="noopener"
+              className="hover:text-primary underline underline-offset-2"
+            >
+              重灌狂人
+            </a>
+            <span aria-hidden="true">・</span>
+            <a
+              href="https://www.techmarks.com/convert-zh-cn/"
+              target="_blank"
+              rel="noopener"
+              className="hover:text-primary underline underline-offset-2"
+            >
+              TechMarks
+            </a>
+          </p>
         </section>
 
         {/* File Upload Section */}
