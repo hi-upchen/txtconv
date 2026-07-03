@@ -12,6 +12,7 @@ import {
 } from '@/lib/custom-dict';
 import { isPaidUser } from '@/lib/auth';
 import { updateDictCache } from '@/lib/client-converter';
+import { trackUpgradeCtaClicked } from '@/lib/analytics';
 
 interface CustomDictEditorProps {
   user: User | null;
