@@ -44,6 +44,9 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  verification: {
+    google: "kzkU9s6p6MuO60DdvtHqc57bVLIhw-LnjFvKMURJRJs",
+  },
 };
 
 export default function RootLayout({
@@ -65,7 +68,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <GoogleTagManager gtmId="GTM-TWV35322" />
+      <GoogleTagManager gtmId="GTM-5C6MXCL4" />
       <body className="font-sans text-slate-700 antialiased min-h-screen flex flex-col">
         {children}
       </body>
