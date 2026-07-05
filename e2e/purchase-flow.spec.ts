@@ -36,7 +36,7 @@ test('homepage Lifetime card shows $30 and links to the Gumroad product', async 
 });
 
 // Landing pages that embed the converter: must load and show the file input.
-for (const path of ['/srt', '/novel', '/csv']) {
+for (const path of ['/srt', '/jianying', '/novel', '/csv']) {
   test(`landing page ${path} responds 200 with the converter present`, async ({ page }) => {
     const response = await page.goto(path);
     expect(response?.status()).toBe(200);
