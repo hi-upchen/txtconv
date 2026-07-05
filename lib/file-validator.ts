@@ -22,15 +22,21 @@ export function getMaxFileSize(licenseType: LicenseType = 'free'): number {
     : FREE_MAX_FILE_SIZE;
 }
 
-// Block common video and office file extensions
+// Kindle e-book formats we cannot open in the browser. They are proprietary
+// (not ZIP-based like EPUB), so we reject them with guidance to convert to
+// EPUB first rather than a generic "text files only" message.
+export const KINDLE_EXTENSIONS = ['.mobi', '.azw', '.azw3'];
+
+// Block common video, office and non-EPUB binary file extensions. EPUB is
+// intentionally NOT blocked: it is a ZIP of UTF-8 text that we convert
+// in-browser (see lib/epub-converter.ts). Kindle formats are handled
+// separately via KINDLE_EXTENSIONS so they get a Calibre-conversion hint.
 export const BLOCKED_EXTENSIONS = [
   // Video files
   '.mov', '.mp4', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v',
   // Office files
   '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf',
   '.pages', '.numbers', '.key', // Mac iWork
-  // Ebook files
-  '.epub', '.mobi', '.azw', '.azw3',
   // Other binary files
   '.exe', '.zip', '.rar', '.7z', '.tar', '.gz',
   '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg',
@@ -102,8 +108,21 @@ export function validateFile(file: File, licenseType: LicenseType = 'free'): Val
         };
   }
 
-  // Block video and office files
+  // Kindle e-book formats: not openable in-browser. Reuse the blocked_type
+  // reason (keeps the analytics union stable) but with a message telling the
+  // user to convert to EPUB with Calibre first, since EPUB IS supported.
   const fileName = file.name.toLowerCase();
+  const isKindle = KINDLE_EXTENSIONS.some((ext) => fileName.endsWith(ext));
+
+  if (isKindle) {
+    return {
+      valid: false,
+      error: '暫不支援 mobi/azw 格式，請先用 Calibre 轉成 EPUB 再上傳。',
+      reason: 'blocked_type',
+    };
+  }
+
+  // Block video, office and other binary files.
   const isBlocked = BLOCKED_EXTENSIONS.some((ext) => fileName.endsWith(ext));
 
   if (isBlocked) {

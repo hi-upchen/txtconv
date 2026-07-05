@@ -1,6 +1,7 @@
 'use client';
 
 import { applyCustomDict, parseDictionary, type DictPair } from '@/lib/custom-dict';
+import { convertEpubBytes, EPUB_MIME_TYPE } from '@/lib/epub-converter';
 import { createClient } from '@/lib/supabase/client';
 import { TEST_USER_ID, TEST_CUSTOM_DICT_PAIRS } from '@/lib/test-user';
 
@@ -36,7 +37,15 @@ function getTestSession(): { userId: string } | null {
   return null;
 }
 
-export type ConversionStage = 'loading-libs' | 'loading-dict' | 'converting' | 'complete';
+export type ConversionStage =
+  | 'loading-libs'
+  | 'loading-dict'
+  | 'converting'
+  | 'complete'
+  // EPUB-specific stages: unzipping the e-book and re-packing it after
+  // conversion. Used by the UI to show e-book-specific progress copy.
+  | 'epub-unzip'
+  | 'epub-rezip';
 
 export interface ConversionProgress {
   stage: ConversionStage;
@@ -48,9 +57,26 @@ export interface ConversionProgress {
 export type ProgressCallback = (progress: ConversionProgress) => void;
 
 export interface ConversionResult {
+  /** Converted text output; empty string for binary formats (see `bytes`). */
   content: string;
+  /**
+   * Converted binary output, present for archive formats such as EPUB. When
+   * set, the caller downloads these bytes (using `mimeType`) instead of
+   * `content`.
+   */
+  bytes?: Uint8Array;
+  /** MIME type for the download Blob; only set alongside `bytes`. */
+  mimeType?: string;
   fileName: string;
   encoding: string;
+}
+
+/**
+ * Returns true when the filename is an EPUB e-book, which is converted
+ * through the archive pipeline rather than the plain-text pipeline.
+ */
+export function isEpubFile(name: string): boolean {
+  return name.toLowerCase().endsWith('.epub');
 }
 
 /**
@@ -375,6 +401,70 @@ export function generateConvertedFilename(originalName: string): string {
 }
 
 /**
+ * Builds a single text-conversion function that applies the user's custom
+ * dictionary (if any) on top of the OpenCC converter. Shared by the plain-
+ * text and EPUB pipelines so both honor Pro custom dictionaries identically.
+ *
+ * @param customPairs - The user's custom dictionary pairs (may be empty)
+ * @returns A `(text) => text` converter
+ */
+function buildConverter(customPairs: DictPair[]): (text: string) => string {
+  if (!converterInstance) {
+    throw new Error('Converter not loaded. Call loadConverterLibs first.');
+  }
+  const converter = converterInstance;
+  return (text: string) =>
+    customPairs.length > 0 ? applyCustomDict(text, customPairs, converter) : converter(text);
+}
+
+/**
+ * Converts an EPUB e-book entirely in the browser: its bytes are unzipped,
+ * text entries are run through the shared conversion pipeline (OpenCC +
+ * custom dictionary), and the archive is re-zipped with the same layout.
+ * The book never leaves the device.
+ *
+ * @param file - The .epub File to convert
+ * @param customPairs - The user's custom dictionary pairs (may be empty)
+ * @param onProgress - Progress callback; emits EPUB-specific stages
+ * @returns Conversion result carrying the new EPUB bytes and a converted
+ *   filename
+ */
+async function convertEpubFile(
+  file: File,
+  customPairs: DictPair[],
+  onProgress: ProgressCallback
+): Promise<ConversionResult> {
+  const convert = buildConverter(customPairs);
+
+  // Stage 3: Read the whole file as bytes (no text-encoding detection —
+  // EPUB mandates UTF-8 for its text entries).
+  onProgress({ stage: 'epub-unzip', percent: 0.15 });
+  const input = new Uint8Array(await file.arrayBuffer());
+
+  // Yield once so the "unzipping" progress paints before the synchronous
+  // unzip/convert/zip work runs.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  // Stage 4: Convert text entries (15-90%).
+  const bytes = convertEpubBytes(input, convert, {
+    onEntryProgress: (fraction) => {
+      onProgress({ stage: 'converting', percent: 0.15 + fraction * 0.75 });
+    },
+  });
+
+  // Stage 5: Re-packed.
+  onProgress({ stage: 'epub-rezip', percent: 0.95 });
+
+  return {
+    content: '',
+    bytes,
+    mimeType: EPUB_MIME_TYPE,
+    fileName: generateConvertedFilename(file.name),
+    encoding: 'UTF-8',
+  };
+}
+
+/**
  * Full conversion pipeline for a single file
  */
 export async function convertFile(
@@ -392,6 +482,11 @@ export async function convertFile(
   onProgress({ stage: 'loading-dict', percent: 0.1 });
   const customPairs = await loadUserDictionary(userId);
   onProgress({ stage: 'loading-dict', percent: 0.15 });
+
+  // EPUB e-books take the archive pipeline (binary in, binary out).
+  if (isEpubFile(file.name)) {
+    return convertEpubFile(file, customPairs, onProgress);
+  }
 
   // Stage 3: Read file and detect encoding
   onProgress({ stage: 'converting', percent: 0.15 });

@@ -10,6 +10,7 @@ jest.mock('@/lib/client-converter', () => ({
   areLibsLoaded: jest.fn(() => false),
   loadConverterLibs: jest.fn(),
   clearDictCache: jest.fn(),
+  isEpubFile: jest.fn((name: string) => name.toLowerCase().endsWith('.epub')),
 }));
 
 // Mock fetch for API calls (still needed for auth/profile)
@@ -43,7 +44,7 @@ describe('FileUpload Component', () => {
   it('should render upload dropzone with original text', () => {
     render(<FileUpload />);
 
-    expect(screen.getByText(/上傳檔案，支援 txt, csv, srt/i)).toBeInTheDocument();
+    expect(screen.getByText(/上傳檔案，支援 txt, epub, csv, srt/i)).toBeInTheDocument();
   });
 
   it('should accept file drop and auto-convert', async () => {

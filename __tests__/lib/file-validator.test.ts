@@ -89,4 +89,20 @@ describe('validateFile format blocking', () => {
     const result = validateFile(makeFile('subs.srt', 1024));
     expect(result.valid).toBe(true);
   });
+
+  it('accepts epub e-books (converted in-browser, no longer blocked)', () => {
+    const result = validateFile(makeFile('book.epub', 1024));
+    expect(result.valid).toBe(true);
+    expect(result.reason).toBeUndefined();
+  });
+
+  it.each(['book.mobi', 'book.azw', 'book.azw3'])(
+    'rejects Kindle format %s with a Calibre-to-EPUB hint',
+    (name) => {
+      const result = validateFile(makeFile(name, 1024));
+      expect(result.valid).toBe(false);
+      expect(result.reason).toBe('blocked_type');
+      expect(result.error).toContain('Calibre');
+    }
+  );
 });
