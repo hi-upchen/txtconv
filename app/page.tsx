@@ -71,6 +71,10 @@ export default async function Home() {
               <a href="/srt" className="hover:text-primary underline underline-offset-2">
                 .srt 電影字幕檔案
               </a>
+              {' ／ '}
+              <a href="/jianying" className="hover:text-primary underline underline-offset-2">
+                剪映字幕簡轉繁
+              </a>
             </p>
             <p>
               <a href="/csv" className="hover:text-primary underline underline-offset-2">
