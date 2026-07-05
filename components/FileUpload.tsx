@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { validateFile } from '@/lib/file-validator';
 import {
   convertFile as clientConvertFile,
+  isEpubFile,
   type ConversionProgress,
 } from '@/lib/client-converter';
 import {
@@ -30,9 +31,32 @@ export interface UploadFile {
   errMessage: string | null;
   isRetryable: boolean;  // true = server error, false = validation error
   upgradeAvailable?: boolean;  // rejected only by the free-tier size limit; show upgrade CTA
-  convertedContent?: string;
+  convertedBlob?: Blob;  // finished output, ready to download (text or binary, e.g. EPUB)
   conversionStartTime?: number;
   inputEncoding?: string;
+  progressLabel?: string;  // stage-specific progress copy (Traditional Chinese), used for EPUB
+}
+
+/**
+ * Maps a conversion stage to Traditional Chinese progress copy for EPUB
+ * e-books. Non-EPUB files keep the generic English status, so this returns
+ * undefined for stages that only apply to plain-text conversion.
+ */
+function epubProgressLabel(stage: ConversionProgress['stage']): string | undefined {
+  switch (stage) {
+    case 'loading-libs':
+      return '載入轉換引擎中…';
+    case 'loading-dict':
+      return '載入自訂字典中…';
+    case 'epub-unzip':
+      return '解壓縮電子書中…';
+    case 'converting':
+      return '轉換章節中…';
+    case 'epub-rezip':
+      return '重新打包電子書中…';
+    default:
+      return undefined;
+  }
 }
 
 // Circular progress ring component
@@ -118,7 +142,9 @@ function FileRow({
     dotColor = 'bg-blue-400';
     dotAnimate = true;
   } else if (isConverting) {
-    statusText = 'Converting...';
+    // EPUB conversion surfaces Traditional Chinese stage copy; other files
+    // keep the generic English status.
+    statusText = store.progressLabel || 'Converting...';
     dotColor = 'bg-amber-400';
     dotAnimate = true;
   } else if (isWaiting) {
@@ -206,7 +232,7 @@ function FileRow({
 
 export default function FileUpload({ licenseType = 'free' }: { licenseType?: LicenseType }) {
   const [files, setFiles] = useState<UploadFile[]>([]);
-  const [downloadQueue, setDownloadQueue] = useState<Array<{ content: string; fileName: string }>>([]);
+  const [downloadQueue, setDownloadQueue] = useState<Array<{ blob: Blob; fileName: string }>>([]);
   const isProcessingQueue = useRef(false);
   const [userId, setUserId] = useState<string | undefined>(undefined);
 
@@ -222,10 +248,10 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
   useEffect(() => {
     if (downloadQueue.length > 0 && !isProcessingQueue.current) {
       isProcessingQueue.current = true;
-      const { content, fileName } = downloadQueue[0];
+      const { blob, fileName } = downloadQueue[0];
 
-      // Download the file
-      const blob = new Blob([content], { type: 'text/plain; charset=utf-8' });
+      // Download the file (Blob already carries the correct MIME type —
+      // text/plain for text files, application/epub+zip for e-books).
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -266,7 +292,8 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
       )
     );
 
-    let convertedContent: string;
+    const isEpub = isEpubFile(file.name);
+    let convertedBlob: Blob;
     let convertedFileName: string;
     let inputEncoding: string;
 
@@ -274,6 +301,8 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
       // Run client-side conversion with progress
       const result = await clientConvertFile(file, userId, (progress: ConversionProgress) => {
         const displayPercent = progress.percent;
+        // EPUB shows Traditional Chinese stage copy; other files stay generic.
+        const progressLabel = isEpub ? epubProgressLabel(progress.stage) : undefined;
 
         // Map stages to progress ranges for UI
         // loading-libs: 0-10%, loading-dict: 10-15%, converting: 15-100%
@@ -283,13 +312,21 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
               ? {
                   ...f,
                   convertProgress: displayPercent,
+                  progressLabel: progressLabel ?? f.progressLabel,
                 }
               : f
           )
         );
       });
 
-      convertedContent = result.content;
+      // Binary formats (EPUB) carry `bytes`; text formats carry `content`.
+      // Copy the bytes into a fresh Uint8Array so the Blob owns a plain
+      // ArrayBuffer (satisfies the BlobPart type across TS lib versions).
+      convertedBlob = result.bytes
+        ? new Blob([new Uint8Array(result.bytes)], {
+            type: result.mimeType || 'application/octet-stream',
+          })
+        : new Blob([result.content], { type: 'text/plain; charset=utf-8' });
       convertedFileName = result.fileName;
       inputEncoding = result.encoding;
     } catch (error) {
@@ -326,7 +363,7 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
               convertProgress: 1.0,
               downloadLink: 'blob://converted',
               filename: convertedFileName,
-              convertedContent: convertedContent,
+              convertedBlob,
               inputEncoding,
             }
           : f
@@ -334,7 +371,7 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
     );
 
     // Add to download queue
-    setDownloadQueue((prev) => [...prev, { content: convertedContent, fileName: convertedFileName }]);
+    setDownloadQueue((prev) => [...prev, { blob: convertedBlob, fileName: convertedFileName }]);
   }, [userId]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -415,9 +452,8 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
   // Download handler
   const downloadFile = useCallback((fileId: string) => {
     const file = files.find((f) => f.id === fileId);
-    if (file?.convertedContent && file?.filename) {
-      const blob = new Blob([file.convertedContent], { type: 'text/plain; charset=utf-8' });
-      const url = URL.createObjectURL(blob);
+    if (file?.convertedBlob && file?.filename) {
+      const url = URL.createObjectURL(file.convertedBlob);
       const a = document.createElement('a');
       a.href = url;
       a.download = file.filename;
@@ -441,7 +477,7 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
           >
             <input {...getInputProps()} />
             <p className="text-2xl font-medium text-primary text-center pointer-events-none">
-              上傳檔案，支援 txt, csv, srt, ...
+              上傳檔案，支援 txt, epub, csv, srt, ...
             </p>
           </div>
         </div>
