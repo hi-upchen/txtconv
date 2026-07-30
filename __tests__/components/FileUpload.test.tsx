@@ -31,6 +31,13 @@ document.createElement = jest.fn((tagName) => {
   return element;
 });
 
+/**
+ * Payment page the upgrade dialog links to. Computed exactly like the
+ * component does, so the assertion holds both locally (where .env supplies
+ * the real product URL) and in continuous integration (where it does not).
+ */
+const EXPECTED_GUMROAD_URL = process.env.NEXT_PUBLIC_GUMROAD_URL || 'https://gumroad.com';
+
 describe('FileUpload Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -39,6 +46,10 @@ describe('FileUpload Component', () => {
     (clientConverter.convertFile as jest.Mock).mockClear();
     // Reset the GTM dataLayer so each test asserts only its own events
     window.dataLayer = [];
+    // The upgrade dialog opens by itself only once per browser session and
+    // records that in sessionStorage, which jsdom keeps across tests in a
+    // file. Clearing it gives every test a fresh session.
+    window.sessionStorage.clear();
   });
 
   it('should render upload dropzone with original text', () => {
@@ -213,7 +224,7 @@ describe('FileUpload Component', () => {
     });
   });
 
-  it('should reject files over the free 5MB limit with an upgrade link', async () => {
+  it('should reject files over the free 5MB limit with an upgrade button', async () => {
     const user = userEvent.setup();
 
     render(<FileUpload licenseType="free" />);
@@ -227,11 +238,102 @@ describe('FileUpload Component', () => {
     }
 
     await waitFor(() => {
-      expect(screen.getByText(/超過免費版 5MB 上限/)).toBeInTheDocument();
+      expect(screen.getByText(/檔案 10.00MB 超過免費版 5MB 上限/)).toBeInTheDocument();
     });
-    expect(screen.getByRole('link', { name: /升級 Pro/ })).toHaveAttribute('href', '#pricing');
+    // The row offers a button (not an anchor to a homepage-only "#pricing"
+    // fragment, which did nothing on the landing pages)
+    expect(
+      screen.getByRole('button', { name: /升級 Pro 可轉換 100MB/ })
+    ).toBeInTheDocument();
     // Rejected file must never start converting
     expect(clientConverter.convertFile).not.toHaveBeenCalled();
+  });
+
+  /** Uploads a file whose size exceeds the free tier's 5MB limit. */
+  async function dropOversizedFile(
+    user: ReturnType<typeof userEvent.setup>,
+    name = 'novel.txt',
+    sizeBytes = 9 * 1024 * 1024
+  ) {
+    const file = new File(['x'], name, { type: 'text/plain' });
+    Object.defineProperty(file, 'size', { value: sizeBytes });
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, file);
+  }
+
+  it('should open the upgrade dialog when an oversized file is dropped', async () => {
+    const user = userEvent.setup();
+
+    render(<FileUpload licenseType="free" />);
+    await dropOversizedFile(user);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(
+      screen.getByRole('heading', { name: '檔案超過免費版 5MB 上限' })
+    ).toBeInTheDocument();
+    // Body copy names the rejected file and its size
+    expect(screen.getByText(/「novel.txt」大小為 9.00MB/)).toBeInTheDocument();
+
+    // The buy button is a real link to the configured payment page
+    expect(
+      screen.getByRole('link', { name: /升級 Pro 終身版 US\$30/ })
+    ).toHaveAttribute('href', EXPECTED_GUMROAD_URL);
+  });
+
+  it('should close the upgrade dialog when dismissed', async () => {
+    const user = userEvent.setup();
+
+    render(<FileUpload licenseType="free" />);
+    await dropOversizedFile(user);
+
+    await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: '稍後再說' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  it('should not reopen the upgrade dialog automatically later in the same session', async () => {
+    const user = userEvent.setup();
+
+    render(<FileUpload licenseType="free" />);
+    await dropOversizedFile(user, 'first.txt');
+
+    await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: '稍後再說' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    // A second oversized file is still rejected, but must not interrupt again
+    await dropOversizedFile(user, 'second.txt');
+
+    await waitFor(() => {
+      expect(screen.getByText('second.txt')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('should reopen the upgrade dialog from the rejected row button', async () => {
+    const user = userEvent.setup();
+
+    render(<FileUpload licenseType="free" />);
+    await dropOversizedFile(user);
+
+    await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: '稍後再說' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    // The once-per-session cap applies to automatic opening only; an explicit
+    // click must always bring the offer back
+    await user.click(screen.getByRole('button', { name: /升級 Pro 可轉換 100MB/ }));
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
   it('should push a file_rejected dataLayer event on an oversized drop', async () => {
@@ -248,7 +350,7 @@ describe('FileUpload Component', () => {
     }
 
     await waitFor(() => {
-      expect(screen.getByText(/超過免費版 5MB 上限/)).toBeInTheDocument();
+      expect(screen.getByText(/檔案 9.00MB 超過免費版 5MB 上限/)).toBeInTheDocument();
     });
 
     const rejectedEvents = window.dataLayer.filter((e) => e.event === 'file_rejected');
