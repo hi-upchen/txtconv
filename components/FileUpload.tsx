@@ -13,10 +13,58 @@ import {
   trackFileConversionCompleted,
   trackFileConversionFailed,
   trackFileRejected,
-  trackUpgradeCtaClicked,
 } from '@/lib/analytics';
+import PaywallDialog from '@/components/PaywallDialog';
 import { createClient } from '@/lib/supabase/client';
 import type { LicenseType } from '@/types/user';
+
+/**
+ * Marker stored in sessionStorage once the upgrade dialog has opened by
+ * itself during this browsing session. It caps the automatic interruption at
+ * one per session; explicitly clicking the upgrade button in a rejected
+ * file's row always reopens the dialog regardless of this marker.
+ */
+const PAYWALL_DIALOG_SHOWN_KEY = 'paywall_dialog_shown';
+
+/**
+ * Payment page the upgrade dialog sends buyers to. Read from the environment
+ * the same way the homepage pricing section does, with a fallback so the
+ * button is never a dead link in an environment that forgot the variable.
+ */
+const GUMROAD_URL = process.env.NEXT_PUBLIC_GUMROAD_URL || 'https://gumroad.com';
+
+/**
+ * Formats a byte count as megabytes with two decimals, matching the wording
+ * of the size-limit rejection message the validator produces.
+ */
+function formatSizeMB(bytes: number): string {
+  return (bytes / 1024 / 1024).toFixed(2);
+}
+
+/**
+ * Reads the "already interrupted this session" marker. Access to
+ * sessionStorage is guarded because browsers in some privacy modes throw on
+ * any access to it; if we cannot read the marker we treat the session as
+ * fresh, which at worst shows the dialog once more than intended.
+ */
+function paywallDialogAlreadyShown(): boolean {
+  try {
+    return window.sessionStorage.getItem(PAYWALL_DIALOG_SHOWN_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** Records the marker; silently ignored when sessionStorage is unavailable. */
+function markPaywallDialogShown(): void {
+  try {
+    window.sessionStorage.setItem(PAYWALL_DIALOG_SHOWN_KEY, '1');
+  } catch {
+    // Storage is unavailable (private browsing, blocked cookies). The dialog
+    // simply loses its once-per-session cap, which is preferable to crashing
+    // the drop handler.
+  }
+}
 
 export interface UploadFile {
   id: string;
@@ -111,10 +159,12 @@ function FileRow({
   store,
   onDownload,
   onRetry,
+  onUpgrade,
 }: {
   store: UploadFile;
   onDownload: () => void;
   onRetry: () => void;
+  onUpgrade: () => void;
 }) {
   // Determine state
   const isUploading = store.isUploading === true;
@@ -180,13 +230,19 @@ function FileRow({
             <span className="material-symbols-outlined text-[14px]">error</span>
             <span>{store.errMessage || statusText}</span>
             {store.upgradeAvailable && (
-              <a
-                href="#pricing"
-                onClick={() => trackUpgradeCtaClicked('file_size_limit')}
+              // A button, not a link to "#pricing": that anchor only exists on
+              // the homepage, so on the landing pages that embed this
+              // converter the old link silently did nothing. Opening the
+              // upgrade dialog works identically on every page. No analytics
+              // event fires here — the dialog's own buttons carry the funnel
+              // events, so counting this click too would double-count.
+              <button
+                type="button"
+                onClick={onUpgrade}
                 className="text-primary hover:text-primary-hover font-bold underline underline-offset-2"
               >
                 升級 Pro 可轉換 100MB →
-              </a>
+              </button>
             )}
           </div>
         ) : (
@@ -235,6 +291,21 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
   const [downloadQueue, setDownloadQueue] = useState<Array<{ blob: Blob; fileName: string }>>([]);
   const isProcessingQueue = useRef(false);
   const [userId, setUserId] = useState<string | undefined>(undefined);
+  // Upgrade dialog shown when a file is rejected for exceeding the free
+  // tier's size limit. The name and size are kept separately from the file
+  // list so the dialog keeps rendering its copy while it closes.
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallFile, setPaywallFile] = useState<{ name: string; sizeMB: string }>({
+    name: '',
+    sizeMB: '0.00',
+  });
+
+  const openPaywallDialog = useCallback((name: string, sizeBytes: number) => {
+    setPaywallFile({ name, sizeMB: formatSizeMB(sizeBytes) });
+    setPaywallOpen(true);
+  }, []);
+
+  const closePaywallDialog = useCallback(() => setPaywallOpen(false), []);
 
   // Get user ID on mount
   useEffect(() => {
@@ -408,6 +479,17 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
 
     setFiles((prev) => [...prev, ...newFiles]);
 
+    // Present the upgrade offer at the moment the size limit is hit, rather
+    // than leaving it to a small link the user has to notice. Only the first
+    // such file in a drop matters, and only the first time in a session — a
+    // dialog on every subsequent drop would be nagging, and the rejected
+    // row keeps its own button for anyone who wants it back.
+    const firstUpgradeable = newFiles.find((f) => f.upgradeAvailable === true);
+    if (firstUpgradeable && !paywallDialogAlreadyShown()) {
+      markPaywallDialogShown();
+      openPaywallDialog(firstUpgradeable.file.name, firstUpgradeable.size);
+    }
+
     // Auto-convert only valid files (client-side, no upload needed)
     newFiles.forEach((uploadFile, index) => {
       if (!uploadFile.errMessage) {
@@ -416,7 +498,7 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
         }, index * 100); // Stagger by 100ms
       }
     });
-  }, [convertFile, licenseType]);
+  }, [convertFile, licenseType, openPaywallDialog]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -492,10 +574,19 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
               store={fileHandler}
               onDownload={() => downloadFile(fileHandler.id)}
               onRetry={() => retryFile(fileHandler.id)}
+              onUpgrade={() => openPaywallDialog(fileHandler.file.name, fileHandler.size)}
             />
           ))}
         </section>
       )}
+
+      <PaywallDialog
+        open={paywallOpen}
+        onClose={closePaywallDialog}
+        fileName={paywallFile.name}
+        fileSizeMB={paywallFile.sizeMB}
+        gumroadUrl={GUMROAD_URL}
+      />
     </div>
   );
 }
