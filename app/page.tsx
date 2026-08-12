@@ -131,7 +131,7 @@ export default async function Home() {
               applicationCategory: 'UtilitiesApplication',
               operatingSystem: 'Web',
               description:
-                '線上簡轉繁工具：將 .txt 小說、.srt 字幕、.csv、.xml 檔案從簡體中文轉換成台灣繁體中文，自動偵測編碼並支援自訂字典。',
+                '簡轉繁線上工具：免費將 txt 小說、srt 字幕、epub 電子書、csv、xml 檔案從簡體轉繁體（台灣繁體中文），檔案不上傳、全程在瀏覽器完成，自動偵測編碼並支援自訂字典。',
               inLanguage: 'zh-TW',
               offers: [
                 { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD' },
