@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types/user';
-import { createClient } from '@/lib/supabase/client';
 import {
   validateDictionary,
   parseDictionary,
@@ -13,6 +12,7 @@ import {
 import { isPaidUser } from '@/lib/auth';
 import { updateDictCache } from '@/lib/client-converter';
 import { trackUpgradeCtaClicked } from '@/lib/analytics';
+import LoginPanel from './LoginPanel';
 
 interface CustomDictEditorProps {
   user: User | null;
@@ -29,9 +29,6 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
   const [isLoading, setIsLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginSent, setLoginSent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -192,29 +189,6 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
     URL.revokeObjectURL(url);
   }, [content]);
 
-  // Login handler
-  const handleLogin = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loginEmail) return;
-
-    setIsLoggingIn(true);
-    const supabase = createClient();
-    const redirectUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: loginEmail,
-      options: {
-        emailRedirectTo: `${redirectUrl}/auth/callback`,
-      },
-    });
-
-    setIsLoggingIn(false);
-
-    if (!error) {
-      setLoginSent(true);
-    }
-  }, [loginEmail]);
-
   // Determine badge text and style
   const getBadge = () => {
     if (!user) {
@@ -333,53 +307,20 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
                 </button>
               </div>
 
-              {/* Login Modal */}
+              {/* Login Modal: same shell as the header dialog, content is the shared panel */}
               {showLoginModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setShowLoginModal(false); setLoginSent(false); setLoginEmail(''); }} />
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowLoginModal(false)} />
                   <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[340px] mx-4 p-6">
                     <button
-                      onClick={() => { setShowLoginModal(false); setLoginSent(false); setLoginEmail(''); }}
+                      type="button"
+                      onClick={() => setShowLoginModal(false)}
+                      aria-label="關閉"
                       className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
                     >
-                      <span className="material-symbols-outlined text-xl">close</span>
+                      <span className="material-symbols-outlined text-xl" aria-hidden="true">close</span>
                     </button>
-
-                    {!loginSent ? (
-                      <>
-                        <h2 className="text-xl font-semibold text-gray-800 mb-1">登入 / 註冊</h2>
-                        <p className="text-sm text-gray-500 mb-5">輸入電子信箱，我們將寄送登入連結給您</p>
-                        <form onSubmit={handleLogin}>
-                          <input
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors mb-3"
-                            type="email"
-                            placeholder="your@email.com"
-                            value={loginEmail}
-                            onChange={(e) => setLoginEmail(e.target.value)}
-                            required
-                          />
-                          <button
-                            className={`w-full py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors ${isLoggingIn ? 'opacity-70 cursor-not-allowed' : ''}`}
-                            type="submit"
-                            disabled={isLoggingIn}
-                          >
-                            {isLoggingIn ? '傳送中...' : '寄送登入連結'}
-                          </button>
-                        </form>
-                        <p className="text-xs text-gray-400 text-center mt-4">無須密碼，安全便捷</p>
-                      </>
-                    ) : (
-                      <div className="text-center py-4">
-                        <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <span className="material-symbols-outlined text-primary text-3xl">check_circle</span>
-                        </div>
-                        <h2 className="text-xl font-semibold text-gray-800 mb-2">請檢查您的信箱</h2>
-                        <p className="text-sm text-gray-500">
-                          我們已將登入連結寄送至<br />
-                          <span className="font-medium text-gray-700">{loginEmail}</span>
-                        </p>
-                      </div>
-                    )}
+                    <LoginPanel description="登入後即可建立自訂字典" />
                   </div>
                 </div>
               )}
