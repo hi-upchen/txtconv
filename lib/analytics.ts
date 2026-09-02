@@ -12,6 +12,10 @@ import type {
   FileRejectedEvent,
   BeginCheckoutEvent,
   UpgradeCtaClickedEvent,
+  LoginMethod,
+  LoginStartedEvent,
+  LoginSucceededEvent,
+  LoginFailedEvent,
 } from '@/types/gtm';
 
 /**
@@ -191,6 +195,64 @@ export function trackUpgradeCtaClicked(
     event: 'upgrade_cta_clicked',
     cta_source: ctaSource,
     source_path: window.location.pathname,
+  };
+
+  window.dataLayer.push(event);
+}
+
+const LOGIN_METHODS: readonly LoginMethod[] = ['google', 'email_code', 'magic_link'];
+
+/** True when value is one of the three login methods we report. */
+export function isLoginMethod(value: unknown): value is LoginMethod {
+  return typeof value === 'string' && (LOGIN_METHODS as readonly string[]).includes(value);
+}
+
+/**
+ * Track the moment a user starts a login.
+ * Fires when the Google button is clicked or the email code form is sent.
+ * Together with login_succeeded it gives the login completion rate.
+ */
+export function trackLoginStarted(method: LoginMethod, sourcePath: string): void {
+  ensureDataLayer();
+
+  const event: LoginStartedEvent = {
+    event: 'login_started',
+    method,
+    source_path: sourcePath,
+  };
+
+  window.dataLayer.push(event);
+}
+
+/**
+ * Track a finished login.
+ * The code path fires it right after the code is accepted.
+ * The Google and email link paths fire it on the next page load,
+ * from the one-shot login_just_succeeded cookie.
+ */
+export function trackLoginSucceeded(method: LoginMethod, sourcePath: string): void {
+  ensureDataLayer();
+
+  const event: LoginSucceededEvent = {
+    event: 'login_succeeded',
+    method,
+    source_path: sourcePath,
+  };
+
+  window.dataLayer.push(event);
+}
+
+/**
+ * Track a login that did not complete.
+ * Reason is a short machine-readable code, never free text from the user.
+ */
+export function trackLoginFailed(method: LoginMethod, reason: string): void {
+  ensureDataLayer();
+
+  const event: LoginFailedEvent = {
+    event: 'login_failed',
+    method,
+    reason,
   };
 
   window.dataLayer.push(event);

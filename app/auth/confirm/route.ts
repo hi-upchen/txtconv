@@ -3,12 +3,17 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getBaseUrl } from '@/lib/url';
 import { ensureProfileLinked } from '@/lib/actions/auth';
+import { finishLoginRedirect } from '@/lib/auth/finish-login';
 
+/**
+ * Token-hash landing route for email links.
+ * Verifies the hash, links the profile, then returns the user to the
+ * page that started the login.
+ */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get('token_hash');
   const type = searchParams.get('type') as EmailOtpType | null;
-  const next = searchParams.get('next') ?? '/';
   const baseUrl = getBaseUrl(request);
 
   if (token_hash && type) {
@@ -26,7 +31,10 @@ export async function GET(request: NextRequest) {
         await ensureProfileLinked(user.id, user.email);
       }
 
-      return NextResponse.redirect(`${baseUrl}${next}`);
+      // This route only ever serves links from the email, so the method is fixed.
+      const destination = await finishLoginRedirect(searchParams.get('next'), 'magic_link');
+
+      return NextResponse.redirect(`${baseUrl}${destination}`);
     }
   }
 

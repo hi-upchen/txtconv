@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { GoogleTagManager } from '@next/third-parties/google';
+import LoginSuccessTracker from '@/components/LoginSuccessTracker';
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -73,6 +74,7 @@ export default function RootLayout({
       </head>
       <GoogleTagManager gtmId="GTM-5C6MXCL4" />
       <body className="font-sans text-slate-700 antialiased min-h-screen flex flex-col">
+        <LoginSuccessTracker />
         {children}
       </body>
     </html>
