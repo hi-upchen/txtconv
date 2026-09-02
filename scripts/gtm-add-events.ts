@@ -13,6 +13,7 @@ import 'dotenv/config';
 import {
   addSettingsRows,
   extendEventRegex,
+  pickWorkspace,
   stripReadOnly,
   type GtmParameter,
   type ParamMapping,
@@ -61,7 +62,7 @@ async function main() {
   }
 
   const { workspace } = await call<{ workspace: Named[] }>('GET', `${PARENT}/workspaces`);
-  const ws = workspace[0].path;
+  const ws = pickWorkspace(workspace).path;
   console.log(`workspace: ${ws}${DRY_RUN ? '  (dry run)' : ''}`);
   let changed = false;
 

@@ -55,6 +55,7 @@ export async function finishLoginRedirect(
     maxAge: LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS,
     path: '/',
     sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
   });
 
   return destination;

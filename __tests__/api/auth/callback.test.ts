@@ -94,7 +94,7 @@ describe('GET /auth/callback', () => {
     expect(mockCookieStore.set).toHaveBeenCalledWith(
       'login_just_succeeded',
       'google',
-      expect.objectContaining({ maxAge: 60, path: '/', sameSite: 'lax' })
+      expect.objectContaining({ maxAge: 60, path: '/', sameSite: 'lax', secure: false })
     );
     expect(mockCookieStore.set.mock.calls[0][2].httpOnly).toBeFalsy();
   });

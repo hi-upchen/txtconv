@@ -35,4 +35,9 @@ describe('browser cookies', () => {
     deleteCookie('login_return_to');
     expect(readCookie('login_return_to')).toBeNull();
   });
+
+  it('returns null instead of throwing when the raw value is malformed', () => {
+    document.cookie = 'login_return_to=%; Path=/';
+    expect(readCookie('login_return_to')).toBeNull();
+  });
 });

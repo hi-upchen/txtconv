@@ -62,7 +62,7 @@ describe('GET /auth/confirm', () => {
     expect(mockCookieStore.set).toHaveBeenCalledWith(
       'login_just_succeeded',
       'magic_link',
-      expect.objectContaining({ maxAge: 60, path: '/', sameSite: 'lax' })
+      expect.objectContaining({ maxAge: 60, path: '/', sameSite: 'lax', secure: false })
     );
   });
 

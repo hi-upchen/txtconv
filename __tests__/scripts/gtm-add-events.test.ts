@@ -1,6 +1,7 @@
 import {
   extendEventRegex,
   addSettingsRows,
+  pickWorkspace,
   stripReadOnly,
   type GtmParameter,
 } from '@/scripts/gtm-add-events.helpers';
@@ -49,6 +50,28 @@ describe('addSettingsRows', () => {
     expect(added).toEqual([]);
     expect(rows).toEqual(input);
     expect(rows).not.toBe(input);
+  });
+});
+
+describe('pickWorkspace', () => {
+  it('picks the only workspace when there is just one', () => {
+    const workspaces = [{ name: 'Default Workspace' }];
+    expect(pickWorkspace(workspaces)).toBe(workspaces[0]);
+  });
+
+  it('prefers the workspace named "Default Workspace" when several exist', () => {
+    const workspaces = [{ name: 'Some other workspace' }, { name: 'Default Workspace' }];
+    expect(pickWorkspace(workspaces)).toBe(workspaces[1]);
+  });
+
+  it('falls back to the only workspace when it is not named "Default Workspace"', () => {
+    const workspaces = [{ name: 'Renamed workspace' }];
+    expect(pickWorkspace(workspaces)).toBe(workspaces[0]);
+  });
+
+  it('throws listing every workspace name when several exist and none is the default', () => {
+    const workspaces = [{ name: 'Workspace A' }, { name: 'Workspace B' }];
+    expect(() => pickWorkspace(workspaces)).toThrow(/Workspace A, Workspace B/);
   });
 });
 

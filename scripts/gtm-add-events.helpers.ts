@@ -9,6 +9,28 @@ export interface GtmParameter {
   map?: GtmParameter[];
 }
 
+/** The workspace name Tag Manager gives every container by default. */
+export const DEFAULT_WORKSPACE_NAME = 'Default Workspace';
+
+/**
+ * Picks the workspace to act on out of every workspace in the container.
+ * Prefers the one named "Default Workspace". Falls back to the only
+ * workspace when there is exactly one. Throws when neither rule picks
+ * a single workspace, so a second workspace never gets changed by accident.
+ */
+export function pickWorkspace<T extends { name: string }>(workspaces: T[]): T {
+  const byDefaultName = workspaces.find((w) => w.name === DEFAULT_WORKSPACE_NAME);
+  if (byDefaultName) return byDefaultName;
+
+  if (workspaces.length === 1) return workspaces[0];
+
+  const names = workspaces.map((w) => w.name).join(', ');
+  throw new Error(
+    `Cannot pick a workspace: no workspace named "${DEFAULT_WORKSPACE_NAME}" and more than one exists (${names}). ` +
+      'Pass the intended workspace explicitly instead of guessing.'
+  );
+}
+
 /** Maps a dataLayer key to the GA4 event parameter name it is sent as. */
 export interface ParamMapping {
   dataLayerKey: string;
