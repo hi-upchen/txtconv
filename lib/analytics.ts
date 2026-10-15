@@ -208,38 +208,48 @@ export function isLoginMethod(value: unknown): value is LoginMethod {
 }
 
 /**
+ * Pushes one login event, then clears its login-only keys.
+ *
+ * Tag Manager remembers the last value pushed for every key. One GA4 tag
+ * forwards all events with the same parameter list. Without the reset,
+ * a later file_conversion_* event would still carry login_method, and a
+ * login_succeeded right after a failure would carry the old failure reason.
+ */
+function pushLoginEvent(event: LoginStartedEvent | LoginSucceededEvent | LoginFailedEvent): void {
+  ensureDataLayer();
+  window.dataLayer.push(event);
+  window.dataLayer.push({ method: undefined, reason: undefined });
+}
+
+/**
  * Track the moment a user starts a login.
  * Fires when the Google button is clicked or the email code form is sent.
  * Together with login_succeeded it gives the login completion rate.
  */
 export function trackLoginStarted(method: LoginMethod, sourcePath: string): void {
-  ensureDataLayer();
-
   const event: LoginStartedEvent = {
     event: 'login_started',
     method,
     source_path: sourcePath,
   };
 
-  window.dataLayer.push(event);
+  pushLoginEvent(event);
 }
 
 /**
  * Track a finished login.
- * The code path fires it right after the code is accepted.
- * The Google and email link paths fire it on the next page load,
- * from the one-shot login_just_succeeded cookie.
+ * Every path fires it on the next page load, from the one-shot
+ * login_just_succeeded cookie. Firing it before a full-page navigation
+ * could lose the hit while the page unloads.
  */
 export function trackLoginSucceeded(method: LoginMethod, sourcePath: string): void {
-  ensureDataLayer();
-
   const event: LoginSucceededEvent = {
     event: 'login_succeeded',
     method,
     source_path: sourcePath,
   };
 
-  window.dataLayer.push(event);
+  pushLoginEvent(event);
 }
 
 /**
@@ -247,13 +257,11 @@ export function trackLoginSucceeded(method: LoginMethod, sourcePath: string): vo
  * Reason is a short machine-readable code, never free text from the user.
  */
 export function trackLoginFailed(method: LoginMethod, reason: string): void {
-  ensureDataLayer();
-
   const event: LoginFailedEvent = {
     event: 'login_failed',
     method,
     reason,
   };
 
-  window.dataLayer.push(event);
+  pushLoginEvent(event);
 }

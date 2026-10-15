@@ -85,6 +85,21 @@ export async function getProfileByEmail(email: string): Promise<Profile | null> 
   return data;
 }
 
+/**
+ * Links the signed-in user's profile, for logins that skip the callback routes.
+ *
+ * The email code login finishes in the browser and never reaches
+ * /auth/callback or /auth/confirm. Those routes call ensureProfileLinked.
+ * The login panel calls this instead, so the user is read from the session
+ * cookie on the server and never from client input.
+ */
+export async function linkSignedInProfile(): Promise<void> {
+  const user = await getAuthUser();
+  if (user?.email) {
+    await ensureProfileLinked(user.id, user.email);
+  }
+}
+
 export async function ensureProfileLinked(userId: string, email: string): Promise<void> {
   // Use service client to bypass RLS — this is an admin-level linking operation
   const supabase = createServiceClient();

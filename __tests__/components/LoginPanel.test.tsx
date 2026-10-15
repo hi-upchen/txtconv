@@ -23,6 +23,11 @@ jest.mock('@/lib/supabase/client', () => ({
   }),
 }));
 
+const mockLinkSignedInProfile = jest.fn();
+jest.mock('@/lib/actions/auth', () => ({
+  linkSignedInProfile: () => mockLinkSignedInProfile(),
+}));
+
 jest.mock('@/lib/auth/navigation', () => ({
   assignLocation: jest.fn(),
 }));
@@ -47,6 +52,8 @@ describe('LoginPanel', () => {
     window.dataLayer = [];
     document.cookie = 'login_return_to=; Max-Age=0; Path=/';
     document.cookie = 'login_method_hint=; Max-Age=0; Path=/';
+    document.cookie = 'login_just_succeeded=; Max-Age=0; Path=/';
+    mockLinkSignedInProfile.mockResolvedValue(undefined);
     delete process.env.NEXT_PUBLIC_APP_URL;
   });
 
@@ -211,7 +218,7 @@ describe('LoginPanel', () => {
       jest.useRealTimers();
     });
 
-    it('verifies the code, reports login_succeeded, clears the cookie and reloads to returnTo', async () => {
+    it('verifies the code, links the profile, leaves a success cookie and reloads to returnTo', async () => {
       const user = userEvent.setup();
       mockVerifyOtp.mockResolvedValue({ data: { session: {}, user: {} }, error: null });
       render(<LoginPanel returnTo="/checkout" />);
@@ -225,11 +232,28 @@ describe('LoginPanel', () => {
         token: '123456',
         type: 'email',
       });
-      expect(events('login_succeeded')).toEqual([
-        { event: 'login_succeeded', method: 'email_code', source_path: '/novel' },
-      ]);
+      expect(mockLinkSignedInProfile).toHaveBeenCalledTimes(1);
+      // login_succeeded is reported after the reload, from this cookie.
+      expect(events('login_succeeded')).toEqual([]);
+      expect(readCookie('login_just_succeeded')).toBe('email_code');
       expect(readCookie('login_return_to')).toBeNull();
       expect(assignLocation).toHaveBeenCalledWith('/checkout');
+    });
+
+    it('still finishes the login when profile linking fails', async () => {
+      const user = userEvent.setup();
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockVerifyOtp.mockResolvedValue({ data: { session: {}, user: {} }, error: null });
+      mockLinkSignedInProfile.mockRejectedValueOnce(new Error('db down'));
+      render(<LoginPanel returnTo="/srt" />);
+      await reachCodeStep(user);
+
+      await user.type(screen.getByLabelText('驗證碼'), '123456');
+      await user.click(screen.getByRole('button', { name: '確認' }));
+
+      expect(readCookie('login_just_succeeded')).toBe('email_code');
+      expect(assignLocation).toHaveBeenCalledWith('/srt');
+      consoleError.mockRestore();
     });
 
     it('shows the expired-code message and reports login_failed with the Supabase code', async () => {

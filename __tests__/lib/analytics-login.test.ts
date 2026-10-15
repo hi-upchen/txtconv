@@ -14,6 +14,7 @@ describe('login analytics events', () => {
     trackLoginStarted('google', '/novel');
     expect(window.dataLayer).toEqual([
       { event: 'login_started', method: 'google', source_path: '/novel' },
+      { method: undefined, reason: undefined },
     ]);
   });
 
@@ -21,6 +22,7 @@ describe('login analytics events', () => {
     trackLoginSucceeded('email_code', '/');
     expect(window.dataLayer).toEqual([
       { event: 'login_succeeded', method: 'email_code', source_path: '/' },
+      { method: undefined, reason: undefined },
     ]);
   });
 
@@ -28,6 +30,7 @@ describe('login analytics events', () => {
     trackLoginFailed('magic_link', 'link_invalid_or_expired');
     expect(window.dataLayer).toEqual([
       { event: 'login_failed', method: 'magic_link', reason: 'link_invalid_or_expired' },
+      { method: undefined, reason: undefined },
     ]);
   });
 
@@ -35,7 +38,15 @@ describe('login analytics events', () => {
     // @ts-expect-error simulate a page where GTM has not run
     delete window.dataLayer;
     trackLoginStarted('google', '/');
-    expect(window.dataLayer).toHaveLength(1);
+    expect(window.dataLayer).toHaveLength(2);
+  });
+
+  it('clears method and reason so later events do not inherit them', () => {
+    trackLoginFailed('email_code', 'otp_expired');
+    const last = window.dataLayer[window.dataLayer.length - 1];
+    expect(last).toHaveProperty('method', undefined);
+    expect(last).toHaveProperty('reason', undefined);
+    expect(last).not.toHaveProperty('event');
   });
 
   it.each(['google', 'email_code', 'magic_link'])('accepts %s as a login method', (value) => {

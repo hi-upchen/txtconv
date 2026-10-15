@@ -20,6 +20,9 @@ jest.mock('@/lib/supabase/client', () => ({
 }));
 jest.mock('@/lib/auth/navigation', () => ({ assignLocation: jest.fn() }));
 
+/** Pushed events only. Skips the reset entry that clears login keys after each event. */
+const pushedEvents = () => window.dataLayer.filter((entry) => entry.event !== undefined);
+
 describe('AuthCodeErrorLogin', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -31,7 +34,7 @@ describe('AuthCodeErrorLogin', () => {
 
   it('reports login_failed as magic_link once on mount when there is no method hint', () => {
     render(<AuthCodeErrorLogin />);
-    expect(window.dataLayer).toEqual([
+    expect(pushedEvents()).toEqual([
       { event: 'login_failed', method: 'magic_link', reason: 'link_invalid_or_expired' },
     ]);
   });
@@ -48,7 +51,7 @@ describe('AuthCodeErrorLogin', () => {
 
     render(<AuthCodeErrorLogin />);
 
-    expect(window.dataLayer).toEqual([
+    expect(pushedEvents()).toEqual([
       { event: 'login_failed', method: 'google', reason: 'oauth_cancelled_or_failed' },
     ]);
     expect(readCookie('login_method_hint')).toBeNull();

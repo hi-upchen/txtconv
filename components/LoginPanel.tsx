@@ -7,11 +7,14 @@ import {
   LOGIN_RETURN_TO_MAX_AGE_SECONDS,
   LOGIN_METHOD_HINT_COOKIE,
   LOGIN_METHOD_HINT_MAX_AGE_SECONDS,
+  LOGIN_JUST_SUCCEEDED_COOKIE,
+  LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS,
   sanitizeReturnTo,
 } from '@/lib/auth/return-to';
 import { writeCookie, deleteCookie } from '@/lib/auth/browser-cookies';
 import { assignLocation } from '@/lib/auth/navigation';
-import { trackLoginStarted, trackLoginSucceeded, trackLoginFailed } from '@/lib/analytics';
+import { trackLoginStarted, trackLoginFailed } from '@/lib/analytics';
+import { linkSignedInProfile } from '@/lib/actions/auth';
 
 interface LoginPanelProps {
   /** In-site path to return to after login. Defaults to the current page. */
@@ -159,7 +162,18 @@ export default function LoginPanel({
       return;
     }
 
-    trackLoginSucceeded('email_code', window.location.pathname);
+    // The code path never visits the server callback routes. Link the
+    // profile here, so a past Gumroad purchase under this email shows up
+    // on the very next page. A failure must not block the login itself.
+    try {
+      await linkSignedInProfile();
+    } catch (linkError) {
+      console.error('Profile linking after code login failed', linkError);
+    }
+
+    // LoginSuccessTracker reports login_succeeded after the reload,
+    // the same way the Google and email link paths do.
+    writeCookie(LOGIN_JUST_SUCCEEDED_COOKIE, 'email_code', LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS);
     deleteCookie(LOGIN_RETURN_TO_COOKIE);
     assignLocation(resolveReturnTo());
   };

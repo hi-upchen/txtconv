@@ -7,6 +7,9 @@ import { render } from '@testing-library/react';
 import LoginSuccessTracker from '@/components/LoginSuccessTracker';
 import { readCookie } from '@/lib/auth/browser-cookies';
 
+/** Pushed events only. Skips the reset entry that clears login keys after each event. */
+const pushedEvents = () => window.dataLayer.filter((entry) => entry.event !== undefined);
+
 describe('LoginSuccessTracker', () => {
   beforeEach(() => {
     window.dataLayer = [];
@@ -18,7 +21,7 @@ describe('LoginSuccessTracker', () => {
 
     render(<LoginSuccessTracker />);
 
-    expect(window.dataLayer).toEqual([
+    expect(pushedEvents()).toEqual([
       { event: 'login_succeeded', method: 'google', source_path: '/checkout' },
     ]);
     expect(readCookie('login_just_succeeded')).toBeNull();
@@ -32,7 +35,7 @@ describe('LoginSuccessTracker', () => {
 
   it('does nothing without the cookie', () => {
     render(<LoginSuccessTracker />);
-    expect(window.dataLayer).toHaveLength(0);
+    expect(pushedEvents()).toHaveLength(0);
   });
 
   it('clears but does not report an unknown method value', () => {
@@ -40,7 +43,7 @@ describe('LoginSuccessTracker', () => {
 
     render(<LoginSuccessTracker />);
 
-    expect(window.dataLayer).toHaveLength(0);
+    expect(pushedEvents()).toHaveLength(0);
     expect(readCookie('login_just_succeeded')).toBeNull();
   });
 
@@ -49,7 +52,7 @@ describe('LoginSuccessTracker', () => {
     const first = render(<LoginSuccessTracker />);
     first.unmount();
     render(<LoginSuccessTracker />);
-    expect(window.dataLayer).toHaveLength(1);
+    expect(pushedEvents()).toHaveLength(1);
   });
 
   it('renders nothing', () => {
