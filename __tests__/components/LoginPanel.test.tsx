@@ -9,14 +9,14 @@ import LoginPanel from '@/components/LoginPanel';
 import { assignLocation } from '@/lib/auth/navigation';
 import { readCookie } from '@/lib/auth/browser-cookies';
 
-const mockSignInWithOAuth = jest.fn();
+const mockSignInWithIdToken = jest.fn();
 const mockSignInWithOtp = jest.fn();
 const mockVerifyOtp = jest.fn();
 
 jest.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: {
-      signInWithOAuth: mockSignInWithOAuth,
+      signInWithIdToken: mockSignInWithIdToken,
       signInWithOtp: mockSignInWithOtp,
       verifyOtp: mockVerifyOtp,
     },
@@ -25,6 +25,22 @@ jest.mock('@/lib/supabase/client', () => ({
 
 jest.mock('@/lib/auth/navigation', () => ({
   assignLocation: jest.fn(),
+}));
+
+// jest.mock factories may only reference variables whose names start with "mock".
+let mockGoogleProps: {
+  onStart: () => void;
+  onCredential: (idToken: string, rawNonce: string) => void;
+  onUnavailable: () => void;
+};
+jest.mock('@/components/GoogleSignInButton', () => ({
+  __esModule: true,
+  default: (props: typeof mockGoogleProps) => {
+    mockGoogleProps = props;
+    // A jest.mock factory cannot use the top-level React import, so it requires React itself.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('react').createElement('div', { 'data-testid': 'google-signin-button' });
+  },
 }));
 
 function events(name: string) {
@@ -46,7 +62,6 @@ describe('LoginPanel', () => {
     jest.clearAllMocks();
     window.dataLayer = [];
     document.cookie = 'login_return_to=; Max-Age=0; Path=/';
-    document.cookie = 'login_method_hint=; Max-Age=0; Path=/';
     delete process.env.NEXT_PUBLIC_APP_URL;
   });
 
@@ -57,7 +72,7 @@ describe('LoginPanel', () => {
   it('renders the Google button, the email form and the default copy', () => {
     render(<LoginPanel />);
     expect(screen.getByRole('heading', { name: '登入 / 註冊' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '使用 Google 登入' })).toBeInTheDocument();
+    expect(screen.getByTestId('google-signin-button')).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '寄送驗證碼' })).toBeInTheDocument();
   });
@@ -68,75 +83,104 @@ describe('LoginPanel', () => {
     expect(screen.getByText('購買會綁定你的 email')).toBeInTheDocument();
   });
 
+  it('uses email-only copy when Google is unavailable and no description is given', () => {
+    render(<LoginPanel />);
+    expect(screen.getByText('使用 Google 帳號一鍵登入，或以 Email 收取驗證碼')).toBeInTheDocument();
+
+    act(() => mockGoogleProps.onUnavailable());
+
+    expect(screen.getByText('以 Email 收取 6 位數驗證碼登入，無須密碼')).toBeInTheDocument();
+  });
+
+  it('keeps a caller-supplied description when Google is unavailable', () => {
+    render(<LoginPanel description="購買會綁定你的 email" />);
+    act(() => mockGoogleProps.onUnavailable());
+    expect(screen.getByText('購買會綁定你的 email')).toBeInTheDocument();
+  });
+
   describe('Google path', () => {
-    it('remembers the current page, reports login_started and calls signInWithOAuth', async () => {
-      const user = userEvent.setup();
-      mockSignInWithOAuth.mockResolvedValue({ data: { provider: 'google', url: 'https://x' }, error: null });
+    it('remembers the current page and reports login_started when the button is clicked', () => {
       render(<LoginPanel />);
 
-      await user.click(screen.getByRole('button', { name: '使用 Google 登入' }));
+      act(() => mockGoogleProps.onStart());
 
       expect(readCookie('login_return_to')).toBe('/novel?x=1');
       expect(events('login_started')).toEqual([
         { event: 'login_started', method: 'google', source_path: '/novel' },
       ]);
-      expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+    });
+
+    it('signs in with the ID token and nonce, then loads /auth/finish for Google', async () => {
+      mockSignInWithIdToken.mockResolvedValue({ data: { session: {}, user: {} }, error: null });
+      render(<LoginPanel returnTo="/checkout" />);
+
+      await act(async () => mockGoogleProps.onCredential('id-token', 'raw-nonce'));
+
+      expect(mockSignInWithIdToken).toHaveBeenCalledWith({
         provider: 'google',
-        options: { redirectTo: 'http://localhost/auth/callback' },
+        token: 'id-token',
+        nonce: 'raw-nonce',
       });
+      expect(readCookie('login_return_to')).toBe('/checkout');
+      expect(assignLocation).toHaveBeenCalledWith('/auth/finish?method=google');
       expect(events('login_failed')).toHaveLength(0);
     });
 
-    it('uses NEXT_PUBLIC_APP_URL as the redirect base when set', async () => {
-      process.env.NEXT_PUBLIC_APP_URL = 'https://txtconv.arpuli.com';
-      const user = userEvent.setup();
-      mockSignInWithOAuth.mockResolvedValue({ data: { provider: 'google', url: 'https://x' }, error: null });
-      render(<LoginPanel />);
-
-      await user.click(screen.getByRole('button', { name: '使用 Google 登入' }));
-
-      expect(mockSignInWithOAuth).toHaveBeenCalledWith({
-        provider: 'google',
-        options: { redirectTo: 'https://txtconv.arpuli.com/auth/callback' },
-      });
-    });
-
-    it('uses the returnTo prop instead of the current page', async () => {
-      const user = userEvent.setup();
-      mockSignInWithOAuth.mockResolvedValue({ data: { provider: 'google', url: 'https://x' }, error: null });
-      render(<LoginPanel returnTo="/checkout" />);
-
-      await user.click(screen.getByRole('button', { name: '使用 Google 登入' }));
-
-      expect(readCookie('login_return_to')).toBe('/checkout');
-    });
-
-    it('shows a readable error and reports login_failed when Google refuses', async () => {
-      const user = userEvent.setup();
-      mockSignInWithOAuth.mockResolvedValue({
-        data: { provider: 'google', url: null },
-        error: { message: 'Unsupported provider', code: 'validation_failed' },
+    it('shows a readable error and reports login_failed when Supabase rejects the token', async () => {
+      mockSignInWithIdToken.mockResolvedValue({
+        data: { session: null, user: null },
+        error: { message: 'Nonces mismatch', code: 'bad_oauth_callback' },
       });
       render(<LoginPanel />);
 
-      await user.click(screen.getByRole('button', { name: '使用 Google 登入' }));
+      await act(async () => mockGoogleProps.onCredential('id-token', 'raw-nonce'));
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Google 登入失敗，請改用下方 Email 驗證碼登入。');
       expect(events('login_failed')).toEqual([
-        { event: 'login_failed', method: 'google', reason: 'validation_failed' },
+        { event: 'login_failed', method: 'google', reason: 'bad_oauth_callback' },
       ]);
-      // The email path stays available as the fallback
+      expect(assignLocation).not.toHaveBeenCalled();
       expect(screen.getByLabelText('Email')).toBeInTheDocument();
     });
 
-    it('marks the login method hint before calling signInWithOAuth', async () => {
-      const user = userEvent.setup();
-      mockSignInWithOAuth.mockResolvedValue({ data: { provider: 'google', url: 'https://x' }, error: null });
+    it('shows a Google status line while signing in, without relabelling the email button', async () => {
+      let finish: (v: unknown) => void = () => {};
+      mockSignInWithIdToken.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
       render(<LoginPanel />);
 
-      await user.click(screen.getByRole('button', { name: '使用 Google 登入' }));
+      act(() => { void mockGoogleProps.onCredential('id-token', 'raw-nonce'); });
 
-      expect(document.cookie).toContain('login_method_hint=google');
+      expect(await screen.findByRole('status')).toHaveTextContent('Google 登入中…');
+      expect(screen.getByRole('button', { name: '寄送驗證碼' })).toBeEnabled();
+      expect(screen.queryByText('傳送中...')).not.toBeInTheDocument();
+
+      await act(async () => finish({ data: {}, error: { message: 'bad', code: 'x' } }));
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('treats a thrown sign-in error like a returned one', async () => {
+      mockSignInWithIdToken.mockRejectedValue(new Error('network down'));
+      render(<LoginPanel />);
+
+      await act(async () => mockGoogleProps.onCredential('id-token', 'raw-nonce'));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Google 登入失敗，請改用下方 Email 驗證碼登入。');
+      expect(events('login_failed')).toEqual([
+        { event: 'login_failed', method: 'google', reason: 'id_token_exception' },
+      ]);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '寄送驗證碼' })).toBeEnabled();
+      expect(assignLocation).not.toHaveBeenCalled();
+    });
+
+    it('hides the Google option and its divider when Google cannot load', () => {
+      render(<LoginPanel />);
+
+      act(() => mockGoogleProps.onUnavailable());
+
+      expect(screen.queryByTestId('google-signin-button')).not.toBeInTheDocument();
+      expect(screen.queryByText('或')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Email')).toBeInTheDocument();
     });
   });
 
@@ -157,17 +201,6 @@ describe('LoginPanel', () => {
       ]);
       expect(screen.getByText('me@example.com')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: '確認' })).toBeInTheDocument();
-    });
-
-    it('clears a leftover Google hint before sending a code', async () => {
-      document.cookie = 'login_method_hint=google; Path=/';
-      const user = userEvent.setup();
-      render(<LoginPanel />);
-
-      await user.type(screen.getByLabelText('Email'), 'me@example.com');
-      await user.click(screen.getByRole('button', { name: '寄送驗證碼' }));
-
-      expect(document.cookie).not.toContain('login_method_hint=google');
     });
 
     it('shows a rate-limit message when Supabase refuses to send', async () => {

@@ -8,7 +8,7 @@ jest.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: {
       getUser: jest.fn().mockResolvedValue({ data: { user: null }, error: null }),
-      signInWithOAuth: jest.fn(),
+      signInWithIdToken: jest.fn(),
       signInWithOtp: jest.fn(),
       verifyOtp: jest.fn(),
       signOut: jest.fn(),
@@ -21,6 +21,13 @@ jest.mock('@/lib/supabase/client', () => ({
       }),
     }),
   }),
+}));
+
+jest.mock('@/components/GoogleSignInButton', () => ({
+  __esModule: true,
+  // A jest.mock factory cannot use the top-level React import, so it requires React itself.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  default: () => require('react').createElement('div', { 'data-testid': 'google-signin-button' }),
 }));
 
 describe('AuthButton', () => {
@@ -37,7 +44,7 @@ describe('AuthButton', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(screen.getByRole('button', { name: '使用 Google 登入' })).toBeInTheDocument();
+    expect(screen.getByTestId('google-signin-button')).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '寄送驗證碼' })).toBeInTheDocument();
   });

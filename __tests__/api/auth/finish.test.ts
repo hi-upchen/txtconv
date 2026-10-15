@@ -20,8 +20,8 @@ jest.mock('@/lib/actions/auth', () => ({
 
 const BASE = 'https://txtconv.test';
 
-async function finish() {
-  return GET(new Request(`${BASE}/auth/finish`));
+async function finish(query = '') {
+  return GET(new Request(`${BASE}/auth/finish${query}`));
 }
 
 describe('GET /auth/finish', () => {
@@ -45,6 +45,18 @@ describe('GET /auth/finish', () => {
 
   it('records email_code as the login method', async () => {
     await finish();
+
+    expect(mockCookieStore.set).toHaveBeenCalledWith('login_just_succeeded', 'email_code', expect.anything());
+  });
+
+  it('records google when the method parameter says google', async () => {
+    await finish('?method=google');
+
+    expect(mockCookieStore.set).toHaveBeenCalledWith('login_just_succeeded', 'google', expect.anything());
+  });
+
+  it('ignores any other method value and records email_code', async () => {
+    await finish('?method=magic_link');
 
     expect(mockCookieStore.set).toHaveBeenCalledWith('login_just_succeeded', 'email_code', expect.anything());
   });
