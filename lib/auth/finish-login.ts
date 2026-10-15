@@ -4,7 +4,6 @@ import {
   LOGIN_RETURN_TO_COOKIE,
   LOGIN_JUST_SUCCEEDED_COOKIE,
   LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS,
-  LOGIN_METHOD_HINT_COOKIE,
   sanitizeReturnTo,
 } from '@/lib/auth/return-to';
 
@@ -19,14 +18,11 @@ import {
  * becomes "/" instead of falling through to the next candidate.
  *
  * Method: fixedMethod wins when the caller passes one.
+ * - /auth/finish passes 'email_code' or 'google'. Both logins finish in the browser.
  * - /auth/confirm passes 'magic_link'. Every request it serves comes from an email link.
- * - /auth/finish passes 'email_code'. The panel sends users there once the code checks out.
- * - /auth/callback passes nothing. The method then comes from the login_method_hint
- *   cookie: 'google' when the panel set it right before the Google redirect,
- *   'magic_link' otherwise. The account's app_metadata.provider cannot tell,
- *   because it records the provider used at sign-up, not for this login.
+ * - /auth/callback passes nothing. It only serves email links, so the label is 'magic_link'.
  *
- * Side effects: clears login_return_to and login_method_hint, and sets a
+ * Side effects: clears login_return_to and sets a
  * one-minute cookie login_just_succeeded=<method>. The next page reads
  * that cookie and reports the login_succeeded event. The cookie must stay
  * readable from JavaScript, so it is not HttpOnly.
@@ -39,11 +35,9 @@ export async function finishLoginRedirect(
 
   const destination = sanitizeReturnTo(nextParam || cookieStore.get(LOGIN_RETURN_TO_COOKIE)?.value);
 
-  const hint = cookieStore.get(LOGIN_METHOD_HINT_COOKIE)?.value;
-  const method: LoginMethod = fixedMethod ?? (hint === 'google' ? 'google' : 'magic_link');
+  const method: LoginMethod = fixedMethod ?? 'magic_link';
 
   cookieStore.delete(LOGIN_RETURN_TO_COOKIE);
-  cookieStore.delete(LOGIN_METHOD_HINT_COOKIE);
   cookieStore.set(LOGIN_JUST_SUCCEEDED_COOKIE, method, {
     maxAge: LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS,
     path: '/',

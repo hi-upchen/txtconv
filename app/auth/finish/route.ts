@@ -5,12 +5,15 @@ import { ensureProfileLinked } from '@/lib/actions/auth';
 import { finishLoginRedirect } from '@/lib/auth/finish-login';
 
 /**
- * Landing route for the email code login.
- * The code is checked in the browser, which already holds the new session.
+ * Landing route for logins that finish in the browser.
+ * The email code and the Google button both leave a fresh session in the browser.
  * This route links the profile and sends the user back, like /auth/callback.
  *
  * Doing this on the server keeps every login path on one finish step.
  * The profile link also rides on the page load the user pays for anyway.
+ *
+ * The method parameter only labels the login for analytics.
+ * Only "google" is honoured. Anything else counts as an email code login.
  */
 export async function GET(request: Request) {
   const baseUrl = getBaseUrl(request);
@@ -26,6 +29,7 @@ export async function GET(request: Request) {
     await ensureProfileLinked(user.id, user.email);
   }
 
-  const destination = await finishLoginRedirect(null, 'email_code');
+  const method = new URL(request.url).searchParams.get('method') === 'google' ? 'google' : 'email_code';
+  const destination = await finishLoginRedirect(null, method);
   return NextResponse.redirect(`${baseUrl}${destination}`);
 }

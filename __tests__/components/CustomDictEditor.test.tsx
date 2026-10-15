@@ -6,7 +6,7 @@ import CustomDictEditor from '@/components/CustomDictEditor';
 jest.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: {
-      signInWithOAuth: jest.fn(),
+      signInWithIdToken: jest.fn(),
       signInWithOtp: jest.fn(),
       verifyOtp: jest.fn(),
     },
@@ -15,6 +15,13 @@ jest.mock('@/lib/supabase/client', () => ({
 
 jest.mock('@/lib/client-converter', () => ({
   updateDictCache: jest.fn(),
+}));
+
+jest.mock('@/components/GoogleSignInButton', () => ({
+  __esModule: true,
+  // A jest.mock factory cannot use the top-level React import, so it requires React itself.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  default: () => require('react').createElement('div', { 'data-testid': 'google-signin-button' }),
 }));
 
 describe('CustomDictEditor (guest)', () => {
@@ -27,7 +34,7 @@ describe('CustomDictEditor (guest)', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '登入 / 註冊' })).toBeInTheDocument();
     expect(screen.getByText('登入後即可建立自訂字典')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '使用 Google 登入' })).toBeInTheDocument();
+    expect(screen.getByTestId('google-signin-button')).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '寄送登入連結' })).not.toBeInTheDocument();
   });
