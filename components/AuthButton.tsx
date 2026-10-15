@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types/user';
 import { isPaidUser } from '@/lib/auth';
-import LoginPanel from './LoginPanel';
+import LoginDialog from './LoginDialog';
 
 interface AuthButtonProps {
   user: User | null;
@@ -41,22 +41,7 @@ export default function AuthButton({ user, profile }: AuthButtonProps) {
         </button>
 
         {/* Login dialog. The panel owns the whole flow, including the code step. */}
-        {isLoginOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsLoginOpen(false)} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[340px] mx-4 p-6">
-              <button
-                type="button"
-                onClick={() => setIsLoginOpen(false)}
-                aria-label="關閉"
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-              >
-                <span className="material-symbols-outlined text-xl" aria-hidden="true">close</span>
-              </button>
-              <LoginPanel />
-            </div>
-          </div>
-        )}
+        {isLoginOpen && <LoginDialog onClose={() => setIsLoginOpen(false)} />}
       </>
     );
   }

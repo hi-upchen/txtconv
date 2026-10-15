@@ -10,7 +10,7 @@ export interface GtmParameter {
 }
 
 /** The workspace name Tag Manager gives every container by default. */
-export const DEFAULT_WORKSPACE_NAME = 'Default Workspace';
+const DEFAULT_WORKSPACE_NAME = 'Default Workspace';
 
 /**
  * Picks the workspace to act on out of every workspace in the container.

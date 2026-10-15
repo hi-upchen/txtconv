@@ -82,16 +82,16 @@ export interface LoginFailedEvent {
 }
 
 /**
- * Clears the login-only keys after a login event.
+ * Clears the keys of the event pushed just before it.
  * Tag Manager would otherwise reuse them on every later event.
  */
-export interface LoginKeysReset {
+export interface DataLayerKeysReset {
   event?: undefined;
-  method: undefined;
-  reason: undefined;
+  [key: string]: undefined;
 }
 
-export type DataLayerEvent =
+/** Every event the site reports. */
+export type TrackedEvent =
   | FileConversionStartedEvent
   | FileConversionCompletedEvent
   | FileConversionFailedEvent
@@ -100,8 +100,9 @@ export type DataLayerEvent =
   | UpgradeCtaClickedEvent
   | LoginStartedEvent
   | LoginSucceededEvent
-  | LoginFailedEvent
-  | LoginKeysReset;
+  | LoginFailedEvent;
+
+export type DataLayerEvent = TrackedEvent | DataLayerKeysReset;
 
 declare global {
   interface Window {

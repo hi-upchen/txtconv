@@ -7,14 +7,11 @@ import {
   LOGIN_RETURN_TO_MAX_AGE_SECONDS,
   LOGIN_METHOD_HINT_COOKIE,
   LOGIN_METHOD_HINT_MAX_AGE_SECONDS,
-  LOGIN_JUST_SUCCEEDED_COOKIE,
-  LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS,
   sanitizeReturnTo,
 } from '@/lib/auth/return-to';
 import { writeCookie, deleteCookie } from '@/lib/auth/browser-cookies';
 import { assignLocation } from '@/lib/auth/navigation';
 import { trackLoginStarted, trackLoginFailed } from '@/lib/analytics';
-import { linkSignedInProfile } from '@/lib/actions/auth';
 
 interface LoginPanelProps {
   /** In-site path to return to after login. Defaults to the current page. */
@@ -37,12 +34,12 @@ function appBaseUrl(): string {
 
 /**
  * Login panel with two ways in: Google, or a six-digit code sent by email.
- * Used inside the header dialog, the dictionary editor and the checkout page.
+ * Used inside LoginDialog and on the expired-link error page.
  *
  * Before either path starts it stores the return path in a cookie.
- * The server callback reads that cookie for Google and email-link logins.
- * The code path reads it here and does a full page load so server
- * components see the new session.
+ * Every login ends on a server route that reads the cookie and redirects.
+ * Google and email links land on /auth/callback or /auth/confirm.
+ * The code path checks the code here, then loads /auth/finish.
  */
 export default function LoginPanel({
   returnTo,
@@ -51,7 +48,6 @@ export default function LoginPanel({
 }: LoginPanelProps) {
   const [step, setStep] = useState<Step>('choose');
   const [email, setEmail] = useState('');
-  const [sentEmail, setSentEmail] = useState('');
   const [code, setCode] = useState('');
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -105,15 +101,15 @@ export default function LoginPanel({
     }
   };
 
-  /** Sends a code. isResend skips the login_started event. */
-  const sendCode = async (address: string, isResend: boolean) => {
+  /** Sends a code to the entered email. isResend skips the login_started event. */
+  const sendCode = async (isResend: boolean) => {
     setIsBusy(true);
     setErrorMessage('');
     rememberReturnTo();
     if (!isResend) trackLoginStarted('email_code', window.location.pathname);
 
     const { error } = await supabase.auth.signInWithOtp({
-      email: address,
+      email,
       options: { emailRedirectTo: `${appBaseUrl()}/auth/callback` },
     });
 
@@ -124,7 +120,6 @@ export default function LoginPanel({
           : '驗證碼寄送失敗，請稍後再試。'
       );
     } else {
-      setSentEmail(address);
       setCode('');
       setStep('code');
       setCooldown(RESEND_COOLDOWN_SECONDS);
@@ -136,12 +131,12 @@ export default function LoginPanel({
     e.preventDefault();
     // Clear a stale Google hint so a later callback never mislabels this session.
     deleteCookie(LOGIN_METHOD_HINT_COOKIE);
-    await sendCode(email, false);
+    await sendCode(false);
   };
 
   const handleResend = async () => {
-    if (cooldown > 0 || !sentEmail) return;
-    await sendCode(sentEmail, true);
+    if (cooldown > 0) return;
+    await sendCode(true);
   };
 
   const handleVerify = async (e: React.FormEvent) => {
@@ -150,7 +145,7 @@ export default function LoginPanel({
     setErrorMessage('');
 
     const { error } = await supabase.auth.verifyOtp({
-      email: sentEmail,
+      email,
       token: code,
       type: 'email',
     });
@@ -162,20 +157,11 @@ export default function LoginPanel({
       return;
     }
 
-    // The code path never visits the server callback routes. Link the
-    // profile here, so a past Gumroad purchase under this email shows up
-    // on the very next page. A failure must not block the login itself.
-    try {
-      await linkSignedInProfile();
-    } catch (linkError) {
-      console.error('Profile linking after code login failed', linkError);
-    }
-
-    // LoginSuccessTracker reports login_succeeded after the reload,
-    // the same way the Google and email link paths do.
-    writeCookie(LOGIN_JUST_SUCCEEDED_COOKIE, 'email_code', LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS);
-    deleteCookie(LOGIN_RETURN_TO_COOKIE);
-    assignLocation(resolveReturnTo());
+    // /auth/finish links the profile, clears the return cookie and
+    // reports login_succeeded on the next page. Refresh the return cookie
+    // first, because the code can outlive the cookie's ten minutes.
+    rememberReturnTo();
+    assignLocation('/auth/finish');
   };
 
   const handleChangeEmail = () => {
@@ -190,13 +176,19 @@ export default function LoginPanel({
     isBusy ? 'opacity-70 cursor-not-allowed' : ''
   }`;
 
+  const errorAlert = errorMessage && (
+    <div role="alert" className="mb-3 px-3 py-2 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">
+      {errorMessage}
+    </div>
+  );
+
   if (step === 'code') {
     return (
       <div>
         <h2 className="text-xl font-semibold text-gray-800 mb-1">輸入驗證碼</h2>
         <p className="text-sm text-gray-500 mb-5">
           我們已將 6 位數驗證碼寄至<br />
-          <span className="font-medium text-gray-700">{sentEmail}</span>
+          <span className="font-medium text-gray-700">{email}</span>
         </p>
         <form onSubmit={handleVerify}>
           <label htmlFor={codeId} className="sr-only">驗證碼</label>
@@ -214,11 +206,7 @@ export default function LoginPanel({
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
             required
           />
-          {errorMessage && (
-            <div role="alert" className="mb-3 px-3 py-2 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">
-              {errorMessage}
-            </div>
-          )}
+          {errorAlert}
           <button className={primaryButtonClass} type="submit" disabled={isBusy || code.length !== CODE_LENGTH}>
             {isBusy ? '驗證中...' : '確認'}
           </button>
@@ -283,11 +271,7 @@ export default function LoginPanel({
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        {errorMessage && (
-          <div role="alert" className="mb-3 px-3 py-2 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">
-            {errorMessage}
-          </div>
-        )}
+        {errorAlert}
         <button className={primaryButtonClass} type="submit" disabled={isBusy}>
           {isBusy ? '傳送中...' : '寄送驗證碼'}
         </button>

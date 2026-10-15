@@ -16,6 +16,8 @@ import type {
   LoginStartedEvent,
   LoginSucceededEvent,
   LoginFailedEvent,
+  DataLayerKeysReset,
+  TrackedEvent,
 } from '@/types/gtm';
 
 /**
@@ -23,6 +25,25 @@ import type {
  */
 function ensureDataLayer(): void {
   window.dataLayer = window.dataLayer || [];
+}
+
+/**
+ * Pushes one event, then clears every key it set except "event".
+ *
+ * Tag Manager remembers the last value pushed for every key. One GA4 tag
+ * forwards all events with the same parameter list. Without the reset,
+ * a later event would inherit keys from an earlier one. For example, a
+ * file conversion would carry login_method, or a login success would
+ * carry the reason of the failure before it.
+ */
+function pushEvent(event: TrackedEvent): void {
+  ensureDataLayer();
+  window.dataLayer.push(event);
+  const reset: DataLayerKeysReset = {};
+  for (const key of Object.keys(event)) {
+    if (key !== 'event') reset[key] = undefined;
+  }
+  window.dataLayer.push(reset);
 }
 
 /**
@@ -68,8 +89,6 @@ function getFileExtension(filename: string): string {
  * Track file conversion started event
  */
 export function trackFileConversionStarted(file: File, inputEncoding: string = 'detecting'): void {
-  ensureDataLayer();
-
   const event: FileConversionStartedEvent = {
     event: 'file_conversion_started',
     file_size: file.size,
@@ -78,7 +97,7 @@ export function trackFileConversionStarted(file: File, inputEncoding: string = '
     input_encoding: inputEncoding,
   };
 
-  window.dataLayer.push(event);
+  pushEvent(event);
 }
 
 /**
@@ -90,8 +109,6 @@ export function trackFileConversionCompleted(
   inputEncoding: string,
   outputEncoding: string = 'UTF-8'
 ): void {
-  ensureDataLayer();
-
   const event: FileConversionCompletedEvent = {
     event: 'file_conversion_completed',
     file_size: file.size,
@@ -101,7 +118,7 @@ export function trackFileConversionCompleted(
     output_encoding: outputEncoding,
   };
 
-  window.dataLayer.push(event);
+  pushEvent(event);
 }
 
 /**
@@ -113,8 +130,6 @@ export function trackFileConversionFailed(
   errorMessage: string,
   inputEncoding: string = 'unknown'
 ): void {
-  ensureDataLayer();
-
   const event: FileConversionFailedEvent = {
     event: 'file_conversion_failed',
     file_size: file.size,
@@ -124,7 +139,7 @@ export function trackFileConversionFailed(
     input_encoding: inputEncoding,
   };
 
-  window.dataLayer.push(event);
+  pushEvent(event);
 }
 
 /**
@@ -143,8 +158,6 @@ export function trackFileRejected(
   reason: FileRejectedEvent['reject_reason'],
   upgradeAvailable: boolean
 ): void {
-  ensureDataLayer();
-
   const event: FileRejectedEvent = {
     event: 'file_rejected',
     file_size: file.size,
@@ -154,7 +167,7 @@ export function trackFileRejected(
     source_path: window.location.pathname,
   };
 
-  window.dataLayer.push(event);
+  pushEvent(event);
 }
 
 /**
@@ -166,8 +179,6 @@ export function trackFileRejected(
  * @param itemName - Product/plan name (e.g. "lifetime")
  */
 export function trackBeginCheckout(value: number, itemName: string): void {
-  ensureDataLayer();
-
   const event: BeginCheckoutEvent = {
     event: 'begin_checkout',
     currency: 'USD',
@@ -176,7 +187,7 @@ export function trackBeginCheckout(value: number, itemName: string): void {
     source_path: window.location.pathname,
   };
 
-  window.dataLayer.push(event);
+  pushEvent(event);
 }
 
 /**
@@ -189,15 +200,13 @@ export function trackBeginCheckout(value: number, itemName: string): void {
 export function trackUpgradeCtaClicked(
   ctaSource: 'file_size_limit' | 'dict_limit'
 ): void {
-  ensureDataLayer();
-
   const event: UpgradeCtaClickedEvent = {
     event: 'upgrade_cta_clicked',
     cta_source: ctaSource,
     source_path: window.location.pathname,
   };
 
-  window.dataLayer.push(event);
+  pushEvent(event);
 }
 
 const LOGIN_METHODS: readonly LoginMethod[] = ['google', 'email_code', 'magic_link'];
@@ -205,20 +214,6 @@ const LOGIN_METHODS: readonly LoginMethod[] = ['google', 'email_code', 'magic_li
 /** True when value is one of the three login methods we report. */
 export function isLoginMethod(value: unknown): value is LoginMethod {
   return typeof value === 'string' && (LOGIN_METHODS as readonly string[]).includes(value);
-}
-
-/**
- * Pushes one login event, then clears its login-only keys.
- *
- * Tag Manager remembers the last value pushed for every key. One GA4 tag
- * forwards all events with the same parameter list. Without the reset,
- * a later file_conversion_* event would still carry login_method, and a
- * login_succeeded right after a failure would carry the old failure reason.
- */
-function pushLoginEvent(event: LoginStartedEvent | LoginSucceededEvent | LoginFailedEvent): void {
-  ensureDataLayer();
-  window.dataLayer.push(event);
-  window.dataLayer.push({ method: undefined, reason: undefined });
 }
 
 /**
@@ -233,7 +228,7 @@ export function trackLoginStarted(method: LoginMethod, sourcePath: string): void
     source_path: sourcePath,
   };
 
-  pushLoginEvent(event);
+  pushEvent(event);
 }
 
 /**
@@ -249,7 +244,7 @@ export function trackLoginSucceeded(method: LoginMethod, sourcePath: string): vo
     source_path: sourcePath,
   };
 
-  pushLoginEvent(event);
+  pushEvent(event);
 }
 
 /**
@@ -263,5 +258,5 @@ export function trackLoginFailed(method: LoginMethod, reason: string): void {
     reason,
   };
 
-  pushLoginEvent(event);
+  pushEvent(event);
 }

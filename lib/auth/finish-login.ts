@@ -18,14 +18,13 @@ import {
  * Every candidate goes through sanitizeReturnTo, so an unsafe value
  * becomes "/" instead of falling through to the next candidate.
  *
- * Method: fixedMethod wins when the caller passes one. The confirm route
- * always passes 'magic_link', because every request it serves comes from
- * an email link. The callback route passes nothing, so the method comes
- * from the login_method_hint cookie instead: 'google' when the panel set
- * it right before the Google button redirected, 'magic_link' otherwise.
- * This does not use the auth user's app_metadata.provider, because that
- * field records the provider used at the account's first sign-up, not
- * the provider used for this login.
+ * Method: fixedMethod wins when the caller passes one.
+ * - /auth/confirm passes 'magic_link'. Every request it serves comes from an email link.
+ * - /auth/finish passes 'email_code'. The panel sends users there once the code checks out.
+ * - /auth/callback passes nothing. The method then comes from the login_method_hint
+ *   cookie: 'google' when the panel set it right before the Google redirect,
+ *   'magic_link' otherwise. The account's app_metadata.provider cannot tell,
+ *   because it records the provider used at sign-up, not for this login.
  *
  * Side effects: clears login_return_to and login_method_hint, and sets a
  * one-minute cookie login_just_succeeded=<method>. The next page reads
@@ -38,13 +37,7 @@ export async function finishLoginRedirect(
 ): Promise<string> {
   const cookieStore = await cookies();
 
-  let destination = '/';
-  if (nextParam) {
-    destination = sanitizeReturnTo(nextParam);
-  } else {
-    const remembered = cookieStore.get(LOGIN_RETURN_TO_COOKIE)?.value ?? null;
-    if (remembered) destination = sanitizeReturnTo(remembered);
-  }
+  const destination = sanitizeReturnTo(nextParam || cookieStore.get(LOGIN_RETURN_TO_COOKIE)?.value);
 
   const hint = cookieStore.get(LOGIN_METHOD_HINT_COOKIE)?.value;
   const method: LoginMethod = fixedMethod ?? (hint === 'google' ? 'google' : 'magic_link');

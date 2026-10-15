@@ -12,7 +12,7 @@ import {
 import { isPaidUser } from '@/lib/auth';
 import { updateDictCache } from '@/lib/client-converter';
 import { trackUpgradeCtaClicked } from '@/lib/analytics';
-import LoginPanel from './LoginPanel';
+import LoginDialog from './LoginDialog';
 
 interface CustomDictEditorProps {
   user: User | null;
@@ -307,23 +307,8 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
                 </button>
               </div>
 
-              {/* Login Modal: same shell as the header dialog, content is the shared panel */}
-              {showLoginModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowLoginModal(false)} />
-                  <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[340px] mx-4 p-6">
-                    <button
-                      type="button"
-                      onClick={() => setShowLoginModal(false)}
-                      aria-label="關閉"
-                      className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-                    >
-                      <span className="material-symbols-outlined text-xl" aria-hidden="true">close</span>
-                    </button>
-                    <LoginPanel description="登入後即可建立自訂字典" />
-                  </div>
-                </div>
-              )}
+              {/* Login Modal */}
+              {showLoginModal && <LoginDialog onClose={() => setShowLoginModal(false)} description="登入後即可建立自訂字典" />}
             </>
           )}
 
