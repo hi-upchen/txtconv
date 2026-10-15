@@ -1,10 +1,8 @@
 import {
   LOGIN_RETURN_TO_COOKIE,
   LOGIN_JUST_SUCCEEDED_COOKIE,
-  LOGIN_METHOD_HINT_COOKIE,
   LOGIN_RETURN_TO_MAX_AGE_SECONDS,
   LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS,
-  LOGIN_METHOD_HINT_MAX_AGE_SECONDS,
   sanitizeReturnTo,
 } from '@/lib/auth/return-to';
 
@@ -14,11 +12,6 @@ describe('return-to cookie constants', () => {
     expect(LOGIN_JUST_SUCCEEDED_COOKIE).toBe('login_just_succeeded');
     expect(LOGIN_RETURN_TO_MAX_AGE_SECONDS).toBe(600);
     expect(LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS).toBe(60);
-  });
-
-  it('adds a login method hint cookie with a ten-minute lifetime', () => {
-    expect(LOGIN_METHOD_HINT_COOKIE).toBe('login_method_hint');
-    expect(LOGIN_METHOD_HINT_MAX_AGE_SECONDS).toBe(600);
   });
 });
 

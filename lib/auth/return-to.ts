@@ -10,12 +10,6 @@ export const LOGIN_RETURN_TO_MAX_AGE_SECONDS = 600;
 /** One minute. The next page load reads and clears it. */
 export const LOGIN_JUST_SUCCEEDED_MAX_AGE_SECONDS = 60;
 
-/** Cookie that remembers which login method the user picked, so the server-side redirect can label it right. */
-export const LOGIN_METHOD_HINT_COOKIE = 'login_method_hint';
-
-/** Ten minutes, same lifetime as login_return_to. */
-export const LOGIN_METHOD_HINT_MAX_AGE_SECONDS = 600;
-
 /**
  * Returns a safe in-site path to send the user back to after login.
  * Anything that is not a plain in-site path becomes "/".

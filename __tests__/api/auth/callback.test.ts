@@ -85,33 +85,17 @@ describe('GET /auth/callback', () => {
     expect(res.headers.get('location')).toBe(`${BASE}/`);
   });
 
-  it('records google when the login_method_hint cookie says so', async () => {
-    setCookies({ login_method_hint: 'google' });
-
-    await callbackWith('?code=abc');
-
-    expect(mockCookieStore.get).toHaveBeenCalledWith('login_method_hint');
-    expect(mockCookieStore.set).toHaveBeenCalledWith(
-      'login_just_succeeded',
-      'google',
-      expect.objectContaining({ maxAge: 60, path: '/', sameSite: 'lax', secure: false })
-    );
-    expect(mockCookieStore.set.mock.calls[0][2].httpOnly).toBeFalsy();
-  });
-
-  it('records magic_link when there is no login_method_hint cookie', async () => {
+  it('records magic_link', async () => {
     await callbackWith('?code=abc');
 
     expect(mockCookieStore.set).toHaveBeenCalledWith('login_just_succeeded', 'magic_link', expect.anything());
   });
 
-  it('clears login_return_to and login_method_hint on success', async () => {
-    setCookies({ login_method_hint: 'google' });
-
+  it('clears login_return_to on success', async () => {
     await callbackWith('?code=abc');
 
     expect(mockCookieStore.delete).toHaveBeenCalledWith('login_return_to');
-    expect(mockCookieStore.delete).toHaveBeenCalledWith('login_method_hint');
+    expect(mockCookieStore.delete).not.toHaveBeenCalledWith('login_method_hint');
   });
 
   it('still links the profile', async () => {
