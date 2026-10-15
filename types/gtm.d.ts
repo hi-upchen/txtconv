@@ -57,13 +57,52 @@ export interface UpgradeCtaClickedEvent {
   source_path: string;
 }
 
-export type DataLayerEvent =
+/** How the user signed in. Also the value of the login_just_succeeded cookie. */
+export type LoginMethod = 'google' | 'email_code' | 'magic_link';
+
+export interface LoginStartedEvent {
+  event: 'login_started';
+  method: LoginMethod;
+  /** Page path where the login panel was opened (e.g. "/", "/checkout") */
+  source_path: string;
+}
+
+export interface LoginSucceededEvent {
+  event: 'login_succeeded';
+  method: LoginMethod;
+  /** Page path where success was observed */
+  source_path: string;
+}
+
+export interface LoginFailedEvent {
+  event: 'login_failed';
+  method: LoginMethod;
+  /** Machine-readable cause, e.g. Supabase error code or "link_invalid_or_expired" */
+  reason: string;
+}
+
+/**
+ * Clears the keys of the event pushed just before it.
+ * Tag Manager would otherwise reuse them on every later event.
+ */
+export interface DataLayerKeysReset {
+  event?: undefined;
+  [key: string]: undefined;
+}
+
+/** Every event the site reports. */
+export type TrackedEvent =
   | FileConversionStartedEvent
   | FileConversionCompletedEvent
   | FileConversionFailedEvent
   | FileRejectedEvent
   | BeginCheckoutEvent
-  | UpgradeCtaClickedEvent;
+  | UpgradeCtaClickedEvent
+  | LoginStartedEvent
+  | LoginSucceededEvent
+  | LoginFailedEvent;
+
+export type DataLayerEvent = TrackedEvent | DataLayerKeysReset;
 
 declare global {
   interface Window {
