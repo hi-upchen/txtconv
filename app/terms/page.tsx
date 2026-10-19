@@ -48,7 +48,7 @@ export default async function TermsPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-bold text-gray-800">付款與退款</h2>
           <p className="text-sm leading-relaxed">
-            Pro 終身授權售價新台幣 899 元，透過綠界科技（ECPay）以信用卡付款；本站不會接觸或保存你的信用卡號。
+            Pro 終身授權售價新台幣 899 元，透過綠界科技（ECPay）以信用卡付款；本站不會接觸或保存你的完整信用卡號。
             如需退款，請於購買後 14 天內來信{' '}
             <a href="mailto:hi.upchen@gmail.com" className="text-primary hover:underline">
               hi.upchen@gmail.com
