@@ -28,7 +28,7 @@ export default async function PrivacyPage() {
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-12 space-y-8 text-gray-700">
         <h1 className="text-3xl font-bold text-gray-800">隱私權政策</h1>
-        <p className="text-sm text-gray-500">最後更新：2026 年 7 月 3 日</p>
+        <p className="text-sm text-gray-500">最後更新：2026 年 10 月 19 日</p>
 
         <section className="space-y-3">
           <h2 className="text-xl font-bold text-gray-800">我們收集哪些資料</h2>
@@ -49,9 +49,8 @@ export default async function PrivacyPage() {
               Analytics 收集匿名的使用統計（如頁面瀏覽、轉換次數、檔案格式類型），用於改善產品。
             </li>
             <li>
-              <strong>付款資料：</strong>Pro 方案付款由 Gumroad
-              處理，我們不會接觸或儲存你的信用卡資料；我們僅會收到訂單編號、購買者
-              email 與付款狀態，用於開通你的方案。
+              <strong>付款資料：</strong>Pro 方案付款由綠界科技（ECPay）處理，本站不會接觸或儲存你的信用卡號；
+              我們只保存訂單編號、綠界交易編號、金額、付款時間與付款狀態，用於開通你的方案與對帳。
             </li>
           </ul>
         </section>
