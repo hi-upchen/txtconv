@@ -2,14 +2,13 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import GoogleSignInButton from './GoogleSignInButton';
 import {
   LOGIN_RETURN_TO_COOKIE,
   LOGIN_RETURN_TO_MAX_AGE_SECONDS,
-  LOGIN_METHOD_HINT_COOKIE,
-  LOGIN_METHOD_HINT_MAX_AGE_SECONDS,
   sanitizeReturnTo,
 } from '@/lib/auth/return-to';
-import { writeCookie, deleteCookie } from '@/lib/auth/browser-cookies';
+import { writeCookie } from '@/lib/auth/browser-cookies';
 import { assignLocation } from '@/lib/auth/navigation';
 import { trackLoginStarted, trackLoginFailed } from '@/lib/analytics';
 
@@ -33,25 +32,27 @@ function appBaseUrl(): string {
 }
 
 /**
- * Login panel with two ways in: Google, or a six-digit code sent by email.
+ * Login panel with two ways in: Google's own button, or a six-digit code by email.
  * Used inside LoginDialog and on the expired-link error page.
  *
  * Before either path starts it stores the return path in a cookie.
- * Every login ends on a server route that reads the cookie and redirects.
- * Google and email links land on /auth/callback or /auth/confirm.
- * The code path checks the code here, then loads /auth/finish.
+ * Both paths check the login in the browser, then load /auth/finish.
+ * That server route links the profile and redirects back.
+ * Email links land on /auth/callback or /auth/confirm instead.
  */
 export default function LoginPanel({
   returnTo,
   heading = '登入 / 註冊',
-  description = '使用 Google 帳號一鍵登入，或以 Email 收取驗證碼',
+  description,
 }: LoginPanelProps) {
   const [step, setStep] = useState<Step>('choose');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [isBusy, setIsBusy] = useState(false);
+  // Which sign-in is running, if any. Only one may run at a time.
+  const [pending, setPending] = useState<'email' | 'google' | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [cooldown, setCooldown] = useState(0);
+  const [isGoogleAvailable, setIsGoogleAvailable] = useState(true);
   const emailId = useId();
   const codeId = useId();
   const codeInputRef = useRef<HTMLInputElement>(null);
@@ -78,32 +79,47 @@ export default function LoginPanel({
     writeCookie(LOGIN_RETURN_TO_COOKIE, resolveReturnTo(), LOGIN_RETURN_TO_MAX_AGE_SECONDS);
   };
 
-  const handleGoogle = async () => {
-    setIsBusy(true);
+  const handleGoogleStart = () => {
     setErrorMessage('');
     rememberReturnTo();
     trackLoginStarted('google', window.location.pathname);
-    // The callback route reads this to label the login. It cannot tell
-    // the method from the account's provider, which only remembers the
-    // provider used at sign-up, not the one used for this login.
-    writeCookie(LOGIN_METHOD_HINT_COOKIE, 'google', LOGIN_METHOD_HINT_MAX_AGE_SECONDS);
+  };
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${appBaseUrl()}/auth/callback` },
-    });
+  const handleGoogleCredential = async (idToken: string, rawNonce: string) => {
+    // Ignore a token while another sign-in is running.
+    if (pending) return;
+    setPending('google');
+    setErrorMessage('');
 
-    // On success the browser is already leaving for Google.
-    if (error) {
-      trackLoginFailed('google', error.code ?? 'oauth_error');
-      setErrorMessage('Google 登入失敗，請改用下方 Email 驗證碼登入。');
-      setIsBusy(false);
+    let errorCode: string | null = null;
+    try {
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: idToken,
+        nonce: rawNonce,
+      });
+      if (error) errorCode = error.code ?? 'id_token_error';
+    } catch {
+      errorCode = 'id_token_exception';
     }
+
+    if (errorCode) {
+      trackLoginFailed('google', errorCode);
+      setErrorMessage('Google 登入失敗，請改用下方 Email 驗證碼登入。');
+      setPending(null);
+      return;
+    }
+
+    // /auth/finish links the profile and reports login_succeeded on the next page.
+    // Google can return a token without a click on our button.
+    // Saving the return page again covers that case.
+    rememberReturnTo();
+    assignLocation('/auth/finish?method=google');
   };
 
   /** Sends a code to the entered email. isResend skips the login_started event. */
   const sendCode = async (isResend: boolean) => {
-    setIsBusy(true);
+    setPending('email');
     setErrorMessage('');
     rememberReturnTo();
     if (!isResend) trackLoginStarted('email_code', window.location.pathname);
@@ -124,13 +140,11 @@ export default function LoginPanel({
       setStep('code');
       setCooldown(RESEND_COOLDOWN_SECONDS);
     }
-    setIsBusy(false);
+    setPending(null);
   };
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Clear a stale Google hint so a later callback never mislabels this session.
-    deleteCookie(LOGIN_METHOD_HINT_COOKIE);
     await sendCode(false);
   };
 
@@ -141,7 +155,7 @@ export default function LoginPanel({
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsBusy(true);
+    setPending('email');
     setErrorMessage('');
 
     const { error } = await supabase.auth.verifyOtp({
@@ -153,7 +167,7 @@ export default function LoginPanel({
     if (error) {
       trackLoginFailed('email_code', error.code ?? 'otp_verify_error');
       setErrorMessage('驗證碼錯誤或已過期，請重新輸入或重寄驗證碼。');
-      setIsBusy(false);
+      setPending(null);
       return;
     }
 
@@ -173,7 +187,7 @@ export default function LoginPanel({
   const inputClass =
     'w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors';
   const primaryButtonClass = `w-full py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors ${
-    isBusy ? 'opacity-70 cursor-not-allowed' : ''
+    pending ? 'opacity-70 cursor-not-allowed' : ''
   }`;
 
   const errorAlert = errorMessage && (
@@ -207,15 +221,15 @@ export default function LoginPanel({
             required
           />
           {errorAlert}
-          <button className={primaryButtonClass} type="submit" disabled={isBusy || code.length !== CODE_LENGTH}>
-            {isBusy ? '驗證中...' : '確認'}
+          <button className={primaryButtonClass} type="submit" disabled={pending !== null || code.length !== CODE_LENGTH}>
+            {pending === 'email' ? '驗證中...' : '確認'}
           </button>
         </form>
         <div className="flex items-center justify-between mt-4 text-sm">
           <button
             type="button"
             onClick={handleResend}
-            disabled={isBusy || cooldown > 0}
+            disabled={pending !== null || cooldown > 0}
             className="text-gray-500 hover:text-primary transition-colors disabled:text-gray-300 disabled:cursor-not-allowed"
           >
             {cooldown > 0 ? `${cooldown} 秒後可重寄` : '重寄驗證碼'}
@@ -236,28 +250,31 @@ export default function LoginPanel({
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-800 mb-1">{heading}</h2>
-      <p className="text-sm text-gray-500 mb-5">{description}</p>
+      <p className="text-sm text-gray-500 mb-5">
+        {description ??
+          (isGoogleAvailable
+            ? '使用 Google 帳號一鍵登入，或以 Email 收取驗證碼'
+            : '以 Email 收取 6 位數驗證碼登入，無須密碼')}
+      </p>
 
-      <button
-        type="button"
-        onClick={handleGoogle}
-        disabled={isBusy}
-        className="w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-      >
-        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48">
-          <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.5 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z" />
-          <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z" />
-          <path fill="#FBBC05" d="M10.5 28.6A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.1.8-4.6l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.9-6.1z" />
-          <path fill="#34A853" d="M24 48c6.3 0 11.7-2.1 15.5-5.8l-7.6-5.9c-2.1 1.4-4.8 2.3-7.9 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.9 6.1C6.5 42.6 14.6 48 24 48z" />
-        </svg>
-        使用 Google 登入
-      </button>
+      {isGoogleAvailable && (
+        <>
+          <GoogleSignInButton
+            onStart={handleGoogleStart}
+            onCredential={handleGoogleCredential}
+            onUnavailable={() => setIsGoogleAvailable(false)}
+          />
+          {pending === 'google' && (
+            <p className="text-sm text-gray-500 text-center mt-2" role="status">Google 登入中…</p>
+          )}
 
-      <div className="flex items-center gap-3 my-4 text-xs text-gray-400">
-        <span className="flex-1 h-px bg-gray-200" />
-        或
-        <span className="flex-1 h-px bg-gray-200" />
-      </div>
+          <div className="flex items-center gap-3 my-4 text-xs text-gray-400">
+            <span className="flex-1 h-px bg-gray-200" />
+            或
+            <span className="flex-1 h-px bg-gray-200" />
+          </div>
+        </>
+      )}
 
       <form onSubmit={handleSendCode}>
         <label htmlFor={emailId} className="sr-only">Email</label>
@@ -272,8 +289,8 @@ export default function LoginPanel({
           required
         />
         {errorAlert}
-        <button className={primaryButtonClass} type="submit" disabled={isBusy}>
-          {isBusy ? '傳送中...' : '寄送驗證碼'}
+        <button className={primaryButtonClass} type="submit" disabled={pending !== null}>
+          {pending === 'email' ? '傳送中...' : '寄送驗證碼'}
         </button>
       </form>
       <p className="text-xs text-gray-400 text-center mt-4">無須密碼，驗證碼 1 小時內有效</p>

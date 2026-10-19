@@ -66,16 +66,6 @@ describe('GET /auth/confirm', () => {
     );
   });
 
-  it('ignores a login_method_hint cookie and still writes magic_link', async () => {
-    mockCookieStore.get.mockImplementation((name: string) =>
-      name === 'login_method_hint' ? { name, value: 'google' } : undefined
-    );
-
-    await confirmWith('?token_hash=h1&type=magiclink');
-
-    expect(mockCookieStore.set).toHaveBeenCalledWith('login_just_succeeded', 'magic_link', expect.anything());
-  });
-
   it('redirects to the error page when verification fails', async () => {
     mockVerifyOtp.mockResolvedValue({ data: {}, error: { message: 'expired' } });
 

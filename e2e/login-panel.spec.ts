@@ -1,6 +1,6 @@
 // e2e/login-panel.spec.ts
 /**
- * End-to-end checks for the login panel: the header dialog offers Google
+ * End-to-end checks for the login panel: the header dialog offers Google's own button
  * and an email code; sending a code switches the panel to the code step;
  * a rejected code shows the expired-code message and reports the failure.
  * Every Supabase Auth request is intercepted, so nothing reaches the real
@@ -22,12 +22,35 @@ async function openHeaderLogin(page: Page) {
   return page.getByRole('dialog');
 }
 
-test('header login dialog shows the Google button and the email field', async ({ page }) => {
+test('header login dialog shows the Google button area and the email field', async ({ page }) => {
+  // Stand in for Google's script so the test never depends on accounts.google.com.
+  await page.route('https://accounts.google.com/gsi/client', (route) =>
+    route.fulfill({
+      contentType: 'application/javascript',
+      body: `window.google = { accounts: { id: {
+        initialize: function (c) { window.__gisConfig = c; },
+        renderButton: function (el) { var b = document.createElement('button'); b.textContent = '使用 Google 帳戶登入'; el.appendChild(b); }
+      } } };`,
+    })
+  );
   const dialog = await openHeaderLogin(page);
 
-  await expect(dialog.getByRole('button', { name: '使用 Google 登入' })).toBeVisible();
+  await expect(dialog.getByTestId('google-signin-button').getByRole('button', { name: '使用 Google 帳戶登入' })).toBeVisible();
   await expect(dialog.getByLabel('Email')).toBeVisible();
   await expect(dialog.getByRole('button', { name: '寄送驗證碼' })).toBeVisible();
+  const config = await page.evaluate(
+    () => (window as unknown as { __gisConfig: { client_id: string; nonce: string } }).__gisConfig
+  );
+  expect(config.client_id).toBe('797135189931-45aim2iq1khsikfv7gu9jvdjknh623sa.apps.googleusercontent.com');
+  expect(config.nonce).toMatch(/^[0-9a-f]{64}$/);
+});
+
+test('the email form still works when Google cannot load', async ({ page }) => {
+  await page.route('https://accounts.google.com/gsi/client', (route) => route.abort());
+  const dialog = await openHeaderLogin(page);
+
+  await expect(dialog.getByLabel('Email')).toBeVisible();
+  await expect(dialog.getByTestId('google-signin-button')).toHaveCount(0);
 });
 
 test('sending a code switches to the code step and reports login_started', async ({ page }) => {
@@ -112,7 +135,7 @@ test('expired-link page offers the code login and reports login_failed', async (
 
   await expect(page.getByRole('heading', { level: 1, name: '登入連結已失效' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '改用驗證碼登入' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '使用 Google 登入' })).toBeVisible();
+  await expect(page.getByLabel('Email')).toBeVisible();
 
   const failed = (await readDataLayer(page)).filter((e) => e.event === 'login_failed');
   expect(failed).toHaveLength(1);
