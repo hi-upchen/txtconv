@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import LoginPanel from '@/components/LoginPanel';
 import { getAuthUser, getProfile, ensureProfileLinked } from '@/lib/actions/auth';
 import { isPaidUser } from '@/lib/auth';
+import { PRO_LIFETIME_PRICE_TWD } from '@/lib/payment/config';
 
 /**
  * Checkout page for the Pro lifetime licence.
@@ -19,14 +20,14 @@ import { isPaidUser } from '@/lib/auth';
 
 export const metadata: Metadata = {
   title: '購買 Pro 終身版',
-  description: '以新台幣 899 元購買 txtconv Pro 終身版，透過綠界 ECPay 信用卡付款。',
+  description: `以新台幣 ${PRO_LIFETIME_PRICE_TWD} 元購買 txtconv Pro 終身版，透過綠界 ECPay 信用卡付款。`,
   robots: { index: false, follow: false },
 };
 
 /** The page reads the session cookie. Never prerender it. */
 export const dynamic = 'force-dynamic';
 
-const PRICE_LABEL = 'NT$899';
+const PRICE_LABEL = `NT$${PRO_LIFETIME_PRICE_TWD}`;
 
 export default async function CheckoutPage() {
   const user = await getAuthUser();
