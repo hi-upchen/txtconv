@@ -51,6 +51,7 @@ const ORDER: EcpayOrder = {
   raw_callback: null,
   created_at: '2026-09-01T16:00:00.000Z',
   paid_at: null,
+  refunded_at: null,
 };
 
 const PAID_FIELDS = {
@@ -154,6 +155,17 @@ describe('markOrderPaid', () => {
     mockFrom.mockReturnValueOnce(queryResolvingTo({ data: [], error: null }));
     mockFrom.mockReturnValueOnce(queryResolvingTo({ data: { ...ORDER, status: 'paid' }, error: null }));
     expect(await markOrderPaid(ORDER.merchant_trade_no, PAID_FIELDS)).toBe('already_paid');
+  });
+
+  it('returns refunded and leaves the order alone when a late callback hits a refunded order', async () => {
+    const q = queryResolvingTo({ data: [], error: null });
+    mockFrom.mockReturnValueOnce(q);
+    mockFrom.mockReturnValueOnce(
+      queryResolvingTo({ data: { ...ORDER, status: 'refunded', refunded_at: '2026-09-10T00:00:00.000Z' }, error: null }),
+    );
+    expect(await markOrderPaid(ORDER.merchant_trade_no, PAID_FIELDS)).toBe('refunded');
+    // The update only matches pending rows, so a refunded row never flips back to paid.
+    expect(q.eq).toHaveBeenNthCalledWith(2, 'status', 'pending');
   });
 
   it('returns not_found when no row flipped and no order exists', async () => {

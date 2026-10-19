@@ -21,7 +21,9 @@ describe('PricingSection', () => {
     render(<PricingSection />);
     expect(screen.getByText('NT$899')).toBeInTheDocument();
     expect(screen.queryByText('$30')).toBeNull();
-    expect(screen.getByText('單檔最大 100MB，批次轉換不受限')).toBeInTheDocument();
+    expect(screen.getByText('單檔最大 100MB（免費版 5MB）')).toBeInTheDocument();
+    // Free users can batch convert too, so batch conversion is not a paid benefit.
+    expect(screen.queryByText(/批次轉換/)).toBeNull();
     expect(screen.getByText('自訂字典對照 10,000 組')).toBeInTheDocument();
   });
 

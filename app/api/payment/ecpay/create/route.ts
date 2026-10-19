@@ -120,7 +120,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     )
     .join('\n      ');
 
-  // The form submits itself on load. The noscript button covers browsers without JavaScript.
+  // The form submits itself on load. The button covers browsers without JavaScript.
+  // The Back button can restore this page from the back-forward cache.
+  // A restored page does not run the submit script again.
+  // So the button and the link stay visible, and the pageshow handler
+  // sends a restored page back to /checkout for a fresh order.
   const html = `<!DOCTYPE html>
 <html lang="zh-Hant">
   <head>
@@ -132,9 +136,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     <p>正在前往綠界安全付款頁面，請稍候…</p>
     <form id="ecpay-form" method="POST" action="${escapeHtmlAttr(config.checkoutUrl)}" accept-charset="UTF-8">
       ${fields}
-      <noscript><button type="submit">若未自動跳轉，請點此前往付款</button></noscript>
+      <p>若未自動跳轉，請點下方按鈕。</p>
+      <button type="submit">前往綠界付款</button>
     </form>
-    <script>document.getElementById('ecpay-form').submit();</script>
+    <p><a href="/checkout">回到結帳頁</a></p>
+    <script>
+      window.addEventListener('pageshow', (e) => { if (e.persisted) location.replace('/checkout') });
+      document.getElementById('ecpay-form').submit();
+    </script>
   </body>
 </html>`;
 

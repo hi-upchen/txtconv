@@ -111,7 +111,6 @@ describe('POST /api/payment/ecpay/create', () => {
     // ECPAY_ENV is unset, so the form posts to the sandbox cashier and submits itself.
     expect(html).toContain('action="https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5"');
     expect(html).toContain("document.getElementById('ecpay-form').submit()");
-    expect(html).toContain('<noscript>');
 
     const fields = hiddenFields(html);
     expect(fields).toMatchObject({
@@ -133,6 +132,23 @@ describe('POST /api/payment/ecpay/create', () => {
     expect(
       verifyCallback(fields, ECPAY_SANDBOX_CREDENTIALS.hashKey, ECPAY_SANDBOX_CREDENTIALS.hashIV),
     ).toBe(true);
+  });
+
+  it('stays usable when the browser restores the page from the back-forward cache', async () => {
+    mockGetAuthUser.mockResolvedValue(USER);
+    mockGetProfile.mockResolvedValue(FREE_PROFILE);
+    const html = await (await POST(request())).text();
+
+    // A restored page does not run the auto-submit script again.
+    // So the pay button must be visible, not hidden inside noscript.
+    expect(html).not.toContain('<noscript>');
+    const form = html.slice(html.indexOf('<form'), html.indexOf('</form>'));
+    expect(form).toContain('<button type="submit">前往綠界付款</button>');
+    expect(html).toContain('<a href="/checkout">回到結帳頁</a>');
+    // A restored page sends the buyer back to /checkout for a fresh order.
+    expect(html).toContain(
+      "window.addEventListener('pageshow', (e) => { if (e.persisted) location.replace('/checkout') })",
+    );
   });
 
   it('treats a user with no profile row as free and still builds the form', async () => {

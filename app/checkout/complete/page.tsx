@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import LoginPanel from '@/components/LoginPanel';
 import PurchaseTracker from '@/components/PurchaseTracker';
 import { getAuthUser, getProfile } from '@/lib/actions/auth';
+import { isPaidUser } from '@/lib/auth';
 import { MERCHANT_TRADE_NO_REGEX } from '@/lib/payment/config';
 import { findOrderForUser } from '@/lib/payment/orders';
 
@@ -18,9 +19,11 @@ import { findOrderForUser } from '@/lib/payment/orders';
  *   - error: the result route could not verify ECPay's message.
  *   - login: nobody is logged in.
  *   - not_found: the order is not this user's.
- *   - paid: success.
+ *   - paid: the order is paid and the licence is active.
+ *   - activating: the order is paid, but the licence is not active yet.
  *   - pending: the callback has not landed yet.
  *   - failed: ECPay reported an unsuccessful payment.
+ *   - refunded: the owner refunded this order.
  * The lifetime grant happens in the callback route, never here.
  */
 
@@ -32,7 +35,15 @@ export const metadata: Metadata = {
 /** The page reads the session cookie and the live order. Never prerender it. */
 export const dynamic = 'force-dynamic';
 
-type View = 'error' | 'login' | 'not_found' | 'paid' | 'pending' | 'failed';
+type View =
+  | 'error'
+  | 'login'
+  | 'not_found'
+  | 'paid'
+  | 'activating'
+  | 'pending'
+  | 'failed'
+  | 'refunded';
 
 const SUPPORT_EMAIL = 'hi.upchen@gmail.com';
 
@@ -63,9 +74,13 @@ export default async function CheckoutCompletePage({
     const order = await findOrderForUser(orderParam, user.id);
     if (!order) {
       view = 'not_found';
+    } else if (order.status === 'refunded') {
+      // A refunded order never counts as a purchase, whatever the URL says.
+      view = 'refunded';
     } else if (order.status === 'paid') {
       // The database wins. A paid order shows success even with failed=1 in the URL.
-      view = 'paid';
+      // Success also needs an active licence. Until then the page keeps polling.
+      view = isPaidUser(profile) ? 'paid' : 'activating';
       amountTwd = order.amount_twd;
     } else {
       view = reportedFailed ? 'failed' : 'pending';
@@ -146,6 +161,20 @@ export default async function CheckoutCompletePage({
           </>
         )}
 
+        {view === 'activating' && (
+          <>
+            <span className="material-symbols-outlined text-primary text-5xl animate-pulse" aria-hidden="true">
+              hourglass_top
+            </span>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">付款完成，開通處理中</h1>
+            <p className="text-gray-600 max-w-md">我們已收到你的付款，正在為你的帳號開通 Pro 終身版。</p>
+            <p className="text-sm text-gray-500">
+              訂單編號：<span className="font-mono">{orderParam}</span>
+            </p>
+            <PurchaseTracker status="activating" merchantTradeNo={orderParam} amountTwd={amountTwd} />
+          </>
+        )}
+
         {view === 'pending' && (
           <>
             <span className="material-symbols-outlined text-amber-500 text-5xl animate-pulse" aria-hidden="true">
@@ -176,6 +205,20 @@ export default async function CheckoutCompletePage({
             </p>
             <Link href="/checkout" className={PRIMARY_LINK_CLASS}>
               回到結帳頁重新付款
+            </Link>
+          </>
+        )}
+        {view === 'refunded' && (
+          <>
+            <span className="material-symbols-outlined text-gray-400 text-5xl" aria-hidden="true">
+              undo
+            </span>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">此訂單已退款</h1>
+            <p className="text-sm text-gray-500">
+              訂單編號：<span className="font-mono">{orderParam}</span>
+            </p>
+            <Link href="/checkout" className={PRIMARY_LINK_CLASS}>
+              回到結帳頁
             </Link>
           </>
         )}

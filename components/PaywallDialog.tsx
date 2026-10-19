@@ -111,7 +111,7 @@ export default function PaywallDialog({
         <ul className="text-left w-full space-y-3 mb-8 text-gray-600 text-sm">
           <li className="flex items-start gap-2">
             <span className="text-gray-900 mt-0.5">•</span>
-            單檔最大 100MB，批次轉換不受限
+            單檔最大 100MB（免費版 5MB）
           </li>
           <li className="flex items-start gap-2">
             <span className="text-gray-900 mt-0.5">•</span>

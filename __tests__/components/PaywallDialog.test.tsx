@@ -44,6 +44,12 @@ describe('PaywallDialog', () => {
     expect(screen.queryByText(/US\$30/)).toBeNull();
   });
 
+  it('lists the real file size benefit and does not sell batch conversion', () => {
+    renderOpen();
+    expect(screen.getByText('單檔最大 100MB（免費版 5MB）')).toBeInTheDocument();
+    expect(screen.queryByText(/批次轉換/)).toBeNull();
+  });
+
   it('reports begin_checkout at NT$899 when the buy button is clicked', async () => {
     const user = userEvent.setup();
     renderOpen();

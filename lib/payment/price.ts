@@ -7,5 +7,9 @@
  * The payment config re-exports the same constant for server code.
  */
 
-/** The one-time lifetime price in New Taiwan Dollars. The only copy on the server. */
+/**
+ * The one-time lifetime price in New Taiwan Dollars.
+ *
+ * It is the single source for code that shows or charges the price.
+ */
 export const PRO_LIFETIME_PRICE_TWD = 899;

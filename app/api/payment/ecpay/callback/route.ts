@@ -5,9 +5,10 @@
  * An order becomes paid here and nowhere else. All of these must hold:
  *   - the CheckMacValue verifies with our HashKey and HashIV;
  *   - RtnCode is 1, ECPay's success code;
- *   - TradeAmt equals the stored order amount and the fixed price;
+ *   - TradeAmt equals the amount stored on the order when it was created;
  *   - SimulatePaid is not 1, because a backend simulation pays nobody;
- *   - this environment may grant a licence at all.
+ *   - this environment may grant a licence at all;
+ *   - the owner has not refunded the order.
  * The browser-facing result route never reaches this logic.
  * So a user cannot report their own payment.
  *
@@ -15,11 +16,11 @@
  * A 500 makes ECPay retry all day, so every error becomes `0|...`.
  * ECPay retries until it sees `1|OK`. A replay of a paid order answers
  * `1|OK` and grants lifetime again, which changes nothing.
+ * A late callback for a refunded order answers `1|OK` and grants nothing.
  */
 
 import { verifyCallback, type EcpayParams } from '@/lib/payment/ecpay';
 import {
-  PRO_LIFETIME_PRICE_TWD,
   getEcpayConfig,
   isSandboxGrantAllowed,
   parseEcpayPaymentDate,
@@ -107,9 +108,11 @@ export async function POST(request: Request): Promise<Response> {
       return ecpayResponse('0|order not found');
     }
 
-    // 4. The amount must match the stored order and the fixed price.
+    // 4. The amount must match the amount the server stored at create time.
+    //    The current price is not checked. A price change must not strand
+    //    a buyer who started checkout at the old price.
     const tradeAmt = Number(body.TradeAmt);
-    if (tradeAmt !== order.amount_twd || tradeAmt !== PRO_LIFETIME_PRICE_TWD) {
+    if (tradeAmt !== order.amount_twd) {
       console.warn('ecpay/callback: amount mismatch', {
         merchantTradeNo,
         tradeAmt: body.TradeAmt,
@@ -136,7 +139,16 @@ export async function POST(request: Request): Promise<Response> {
       return ecpayResponse('1|OK');
     }
 
-    // 7. Mark the order paid in one atomic step, then grant.
+    // 7. A refunded order stays refunded. A late callback must not grant again.
+    //    The answer is 1|OK so ECPay does not retry.
+    if (order.status === 'refunded') {
+      console.warn('ecpay/callback: order already refunded, acknowledged without granting', {
+        merchantTradeNo,
+      });
+      return ecpayResponse('1|OK');
+    }
+
+    // 8. Mark the order paid in one atomic step, then grant.
     //    A retry after a failed grant lands on already_paid and grants again.
     const paymentDate = parseEcpayPaymentDate(body.PaymentDate ?? '');
     const result = await markOrderPaid(merchantTradeNo, {
@@ -154,7 +166,15 @@ export async function POST(request: Request): Promise<Response> {
       return ecpayResponse('0|order not found');
     }
 
-    // 8. A buyer can pay twice from two open cashier tabs. The money is taken,
+    // The owner can refund the order between our lookup and the update.
+    if (result === 'refunded') {
+      console.warn('ecpay/callback: order already refunded, acknowledged without granting', {
+        merchantTradeNo,
+      });
+      return ecpayResponse('1|OK');
+    }
+
+    // 9. A buyer can pay twice from two open cashier tabs. The money is taken,
     //    so ECPay still gets 1|OK. The log tells the owner which order to refund.
     if (result === 'paid_now') {
       const earlierOrder = await findOtherPaidOrder(order.user_id, merchantTradeNo);

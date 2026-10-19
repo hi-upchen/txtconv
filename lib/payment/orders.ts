@@ -7,8 +7,12 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 
-/** Order states. An unpaid order simply stays pending. There is no failed state. */
-export type EcpayOrderStatus = 'pending' | 'paid';
+/**
+ * Order states. An unpaid order simply stays pending. There is no failed state.
+ * The owner sets `refunded` by hand after refunding a paid order.
+ * A refunded order never counts as paid.
+ */
+export type EcpayOrderStatus = 'pending' | 'paid' | 'refunded';
 
 /** One row of `public.ecpay_orders`. Column names match the migration. */
 export interface EcpayOrder {
@@ -27,6 +31,8 @@ export interface EcpayOrder {
   raw_callback: Record<string, string> | null;
   created_at: string;
   paid_at: string | null;
+  /** When the owner refunded the order. Null for any order not refunded. */
+  refunded_at: string | null;
 }
 
 /** The parts of a verified ECPay callback we keep on the order. */
@@ -42,7 +48,7 @@ export interface PaidCallbackFields {
 }
 
 /** Outcome of the atomic pending-to-paid update. */
-export type MarkOrderPaidResult = 'paid_now' | 'already_paid' | 'not_found';
+export type MarkOrderPaidResult = 'paid_now' | 'already_paid' | 'refunded' | 'not_found';
 
 /**
  * Inserts a pending order for the logged-in buyer.
@@ -97,6 +103,7 @@ export async function findOrderByTradeNo(merchantTradeNo: string): Promise<Ecpay
  * ECPay retries callbacks, so the same order can arrive twice.
  * The second arrival updates zero rows. We then look the order up once more.
  * That tells a duplicate (`already_paid`) apart from an unknown order (`not_found`).
+ * A refunded order also updates zero rows. It stays refunded and returns `refunded`.
  */
 export async function markOrderPaid(
   merchantTradeNo: string,
@@ -127,6 +134,7 @@ export async function markOrderPaid(
 
   const existing = await findOrderByTradeNo(merchantTradeNo);
   if (existing?.status === 'paid') return 'already_paid';
+  if (existing?.status === 'refunded') return 'refunded';
   return 'not_found';
 }
 

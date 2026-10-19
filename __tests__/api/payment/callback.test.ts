@@ -38,10 +38,23 @@ const ORDER = {
   status: 'pending',
 };
 
-/** Builds a callback body signed with the sandbox keys. Overrides apply before signing. */
-function signedBody(overrides: Record<string, string> = {}): Record<string, string> {
+/** Made-up production merchant values. They only need to differ from the sandbox. */
+const PRODUCTION_TEST_KEYS = {
+  merchantId: '3999999',
+  hashKey: 'prodTestHashKey1',
+  hashIV: 'prodTestHashIV01',
+} as const;
+
+/**
+ * Builds a callback body signed with the sandbox keys. Overrides apply before signing.
+ * Pass other keys to sign as a different merchant.
+ */
+function signedBody(
+  overrides: Record<string, string> = {},
+  keys: { merchantId: string; hashKey: string; hashIV: string } = ECPAY_SANDBOX_CREDENTIALS,
+): Record<string, string> {
   const body: Record<string, string> = {
-    MerchantID: ECPAY_SANDBOX_CREDENTIALS.merchantId,
+    MerchantID: keys.merchantId,
     MerchantTradeNo: ORDER.merchant_trade_no,
     RtnCode: '1',
     RtnMsg: '交易成功',
@@ -53,11 +66,7 @@ function signedBody(overrides: Record<string, string> = {}): Record<string, stri
     CustomField1: ORDER.user_id,
     ...overrides,
   };
-  body.CheckMacValue = buildCheckMacValue(
-    body,
-    ECPAY_SANDBOX_CREDENTIALS.hashKey,
-    ECPAY_SANDBOX_CREDENTIALS.hashIV,
-  );
+  body.CheckMacValue = buildCheckMacValue(body, keys.hashKey, keys.hashIV);
   return body;
 }
 
@@ -196,10 +205,19 @@ describe('POST /api/payment/ecpay/callback', () => {
     expect(mockMarkOrderPaid).not.toHaveBeenCalled();
   });
 
-  it('rejects an amount that matches a tampered order but not the fixed price', async () => {
-    mockFindOrderByTradeNo.mockResolvedValue({ ...ORDER, amount_twd: 1 });
-    expect(await post(signedBody({ TradeAmt: '1' }))).toBe('0|amount mismatch (TradeAmt=1)');
+  it('rejects an amount that differs from the stored order amount', async () => {
+    mockFindOrderByTradeNo.mockResolvedValue({ ...ORDER, amount_twd: 799 });
+    expect(await post(signedBody({ TradeAmt: '899' }))).toBe('0|amount mismatch (TradeAmt=899)');
     expect(mockMarkOrderPaid).not.toHaveBeenCalled();
+    expect(mockGrantLifetime).not.toHaveBeenCalled();
+  });
+
+  it('accepts the stored order amount even when it differs from the current price', async () => {
+    // The order was created before a price change. The buyer paid what we asked.
+    mockFindOrderByTradeNo.mockResolvedValue({ ...ORDER, amount_twd: 799 });
+    expect(await post(signedBody({ TradeAmt: '799' }))).toBe('1|OK');
+    expect(mockMarkOrderPaid).toHaveBeenCalledTimes(1);
+    expect(mockGrantLifetime).toHaveBeenCalledTimes(1);
   });
 
   it('acknowledges a simulated payment without granting anything', async () => {
@@ -240,6 +258,56 @@ describe('POST /api/payment/ecpay/callback', () => {
     expect(await post(signedBody())).toBe('1|OK');
     expect(mockMarkOrderPaid).toHaveBeenCalledTimes(1);
     expect(mockGrantLifetime).toHaveBeenCalledTimes(1);
+  });
+
+  it('grants in production mode with the production keys and no sandbox opt-in', async () => {
+    process.env.ECPAY_ENV = 'production';
+    process.env.ECPAY_MERCHANT_ID = PRODUCTION_TEST_KEYS.merchantId;
+    process.env.ECPAY_HASH_KEY = PRODUCTION_TEST_KEYS.hashKey;
+    process.env.ECPAY_HASH_IV = PRODUCTION_TEST_KEYS.hashIV;
+    delete process.env.ECPAY_SANDBOX_GRANT;
+
+    expect(await post(signedBody({}, PRODUCTION_TEST_KEYS))).toBe('1|OK');
+    expect(mockMarkOrderPaid).toHaveBeenCalledWith(ORDER.merchant_trade_no, expect.any(Object));
+    expect(mockGrantLifetime).toHaveBeenCalledWith(
+      ORDER.user_id,
+      ORDER.email,
+      '2026-09-01T16:07:00.000Z',
+    );
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('rejects a sandbox-signed callback in production mode', async () => {
+    process.env.ECPAY_ENV = 'production';
+    process.env.ECPAY_MERCHANT_ID = PRODUCTION_TEST_KEYS.merchantId;
+    process.env.ECPAY_HASH_KEY = PRODUCTION_TEST_KEYS.hashKey;
+    process.env.ECPAY_HASH_IV = PRODUCTION_TEST_KEYS.hashIV;
+    delete process.env.ECPAY_SANDBOX_GRANT;
+
+    expect(await post(signedBody())).toBe('0|CheckMacValue verify failed');
+    expect(mockGrantLifetime).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges a late callback for a refunded order without marking it paid or granting', async () => {
+    mockFindOrderByTradeNo.mockResolvedValue({ ...ORDER, status: 'refunded' });
+    expect(await post(signedBody())).toBe('1|OK');
+    expect(mockMarkOrderPaid).not.toHaveBeenCalled();
+    expect(mockGrantLifetime).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('refunded'),
+      expect.objectContaining({ merchantTradeNo: ORDER.merchant_trade_no }),
+    );
+  });
+
+  it('grants nothing when the order turns refunded between lookup and update', async () => {
+    mockMarkOrderPaid.mockResolvedValue('refunded');
+    expect(await post(signedBody())).toBe('1|OK');
+    expect(mockGrantLifetime).not.toHaveBeenCalled();
+    expect(mockFindOtherPaidOrder).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('refunded'),
+      expect.objectContaining({ merchantTradeNo: ORDER.merchant_trade_no }),
+    );
   });
 
   it('marks the order paid, grants lifetime, and answers 1|OK', async () => {

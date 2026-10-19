@@ -90,6 +90,44 @@ describe('PurchaseTracker', () => {
     expect(purchases()).toHaveLength(1);
   });
 
+  it('reports the purchase and keeps refreshing while a paid order waits for its licence', () => {
+    const { rerender } = render(
+      <PurchaseTracker status="activating" merchantTradeNo={ORDER_NO} amountTwd={899} />,
+    );
+
+    // The money is taken, so the purchase counts even before the licence shows.
+    expect(purchases()).toHaveLength(1);
+    expect(screen.getByText(/正在開通 Pro/)).toBeInTheDocument();
+    act(() => {
+      jest.advanceTimersByTime(6000);
+    });
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
+
+    // The licence is now active. Polling stops and the purchase is not sent again.
+    rerender(<PurchaseTracker status="paid" merchantTradeNo={ORDER_NO} amountTwd={899} />);
+    act(() => {
+      jest.advanceTimersByTime(9000);
+    });
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
+    expect(purchases()).toHaveLength(1);
+  });
+
+  it('keeps one polling clock when a pending order turns into a paid order awaiting its licence', () => {
+    const { rerender } = render(
+      <PurchaseTracker status="pending" merchantTradeNo={ORDER_NO} amountTwd={899} />,
+    );
+    act(() => {
+      jest.advanceTimersByTime(57_000);
+    });
+    rerender(<PurchaseTracker status="activating" merchantTradeNo={ORDER_NO} amountTwd={899} />);
+    expect(purchases()).toHaveLength(1);
+    act(() => {
+      jest.advanceTimersByTime(3000);
+    });
+    // The 60-second limit counts from the first view, not from the change.
+    expect(screen.getByText(/若你已完成扣款/)).toBeInTheDocument();
+  });
+
   it('stops refreshing after 60 seconds and shows the contact notice with the order number', () => {
     render(<PurchaseTracker status="pending" merchantTradeNo={ORDER_NO} amountTwd={899} />);
 

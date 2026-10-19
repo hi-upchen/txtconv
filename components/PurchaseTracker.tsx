@@ -17,21 +17,30 @@ export function purchaseTrackedKey(merchantTradeNo: string): string {
   return `purchase_tracked_${merchantTradeNo}`;
 }
 
+/**
+ * Order state as the server page read it.
+ *   - paid: the order is paid and the licence is active.
+ *   - activating: the order is paid, but the licence is not active yet.
+ *   - pending: the callback has not marked the order paid yet.
+ */
+export type PurchaseTrackerStatus = 'paid' | 'activating' | 'pending';
+
 interface PurchaseTrackerProps {
-  /** Order state as the server page read it. */
-  status: 'paid' | 'pending';
+  status: PurchaseTrackerStatus;
   merchantTradeNo: string;
   amountTwd: number;
 }
 
 /**
- * Reports a paid order once, or keeps a pending order fresh.
+ * Reports a paid order once, and keeps an unfinished order fresh.
  *
- * For a paid order it sends the purchase event and renders nothing.
+ * A paid order sends the purchase event once. The money is taken, so an
+ * order that waits for its licence sends the event too.
  * sessionStorage remembers the order, so a reload does not count it twice.
  *
- * For a pending order it re-renders the server page every 3 seconds.
- * ECPay's callback often lands a few seconds after the browser returns.
+ * A pending order, or a paid order without an active licence, re-renders
+ * the server page every 3 seconds. ECPay's callback often lands a few
+ * seconds after the browser returns.
  * After 60 seconds it stops and shows how to contact us.
  * The component stays mounted across refreshes, so the timer keeps its state.
  */
@@ -50,8 +59,11 @@ export default function PurchaseTracker({
     routerRef.current = router;
   }, [router]);
 
+  const sendsPurchase = status === 'paid' || status === 'activating';
+  const polls = status === 'pending' || status === 'activating';
+
   useEffect(() => {
-    if (status !== 'paid') return;
+    if (!sendsPurchase) return;
     const key = purchaseTrackedKey(merchantTradeNo);
     try {
       if (window.sessionStorage.getItem(key)) return;
@@ -64,10 +76,12 @@ export default function PurchaseTracker({
     } catch {
       // Storage is blocked. There is nothing else to do.
     }
-  }, [status, merchantTradeNo, amountTwd]);
+  }, [sendsPurchase, merchantTradeNo, amountTwd]);
 
+  // The timer depends on polls, not status. A pending order that turns into
+  // an activating one keeps the same timer and the same 60-second limit.
   useEffect(() => {
-    if (status !== 'pending') return;
+    if (!polls) return;
     const startedAt = Date.now();
     const timer = window.setInterval(() => {
       if (Date.now() - startedAt >= GIVE_UP_AFTER_MS) {
@@ -78,7 +92,7 @@ export default function PurchaseTracker({
       routerRef.current.refresh();
     }, REFRESH_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [status]);
+  }, [polls]);
 
   if (status === 'paid') return null;
 
@@ -96,7 +110,9 @@ export default function PurchaseTracker({
 
   return (
     <p className="text-sm text-gray-600" role="status">
-      正在向綠界確認付款結果，這個頁面每 3 秒會自動更新一次，請稍候…
+      {status === 'activating'
+        ? '正在開通 Pro，這個頁面每 3 秒會自動更新一次，請稍候…'
+        : '正在向綠界確認付款結果，這個頁面每 3 秒會自動更新一次，請稍候…'}
     </p>
   );
 }

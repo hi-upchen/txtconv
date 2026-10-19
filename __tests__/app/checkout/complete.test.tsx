@@ -30,6 +30,7 @@ import CheckoutCompletePage from '@/app/checkout/complete/page';
 const USER = { id: '22222222-2222-2222-2222-222222222222', email: 'buyer@example.com' };
 const ORDER_NO = 'TCabc123def456ghi789';
 const PAID_ORDER = { merchant_trade_no: ORDER_NO, user_id: USER.id, amount_twd: 899, status: 'paid' };
+const LIFETIME_PROFILE = { id: USER.id, license_type: 'lifetime', license_expires_at: null };
 
 function pageWith(query: Record<string, string>) {
   return CheckoutCompletePage({ searchParams: Promise.resolve(query) });
@@ -83,8 +84,45 @@ describe('/checkout/complete page', () => {
     expect(screen.getByRole('heading', { name: '找不到這筆訂單' })).toBeInTheDocument();
   });
 
+  it('shows "activation in progress" when the order is paid but the licence is not active yet', async () => {
+    mockFindOrderForUser.mockResolvedValue(PAID_ORDER);
+    mockGetProfile.mockResolvedValue({ id: USER.id, license_type: 'free' });
+    render(await pageWith({ order: ORDER_NO }));
+    expect(screen.getByRole('heading', { name: '付款完成，開通處理中' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '付款成功，Pro 終身版已開通' })).toBeNull();
+    expect(screen.getByText(ORDER_NO)).toBeInTheDocument();
+    // The tracker reports the purchase and keeps polling until the licence shows.
+    const tracker = screen.getByTestId('tracker');
+    expect(tracker).toHaveAttribute('data-status', 'activating');
+    expect(tracker).toHaveAttribute('data-amount', '899');
+  });
+
+  it('shows "activation in progress" when a paid order has no profile row yet', async () => {
+    mockFindOrderForUser.mockResolvedValue(PAID_ORDER);
+    mockGetProfile.mockResolvedValue(null);
+    render(await pageWith({ order: ORDER_NO }));
+    expect(screen.getByRole('heading', { name: '付款完成，開通處理中' })).toBeInTheDocument();
+  });
+
+  it('shows a refunded order as refunded, with no purchase event and a link to /checkout', async () => {
+    mockFindOrderForUser.mockResolvedValue({ ...PAID_ORDER, status: 'refunded' });
+    render(await pageWith({ order: ORDER_NO }));
+    expect(screen.getByRole('heading', { name: '此訂單已退款' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '回到結帳頁' })).toHaveAttribute('href', '/checkout');
+    expect(screen.queryByTestId('tracker')).toBeNull();
+    expect(screen.queryByRole('heading', { name: '付款確認中' })).toBeNull();
+  });
+
+  it('shows a refunded order as refunded even when the URL says failed', async () => {
+    mockFindOrderForUser.mockResolvedValue({ ...PAID_ORDER, status: 'refunded' });
+    render(await pageWith({ order: ORDER_NO, failed: '1' }));
+    expect(screen.getByRole('heading', { name: '此訂單已退款' })).toBeInTheDocument();
+    expect(screen.queryByTestId('tracker')).toBeNull();
+  });
+
   it('shows success and mounts the tracker in paid mode', async () => {
     mockFindOrderForUser.mockResolvedValue(PAID_ORDER);
+    mockGetProfile.mockResolvedValue(LIFETIME_PROFILE);
     render(await pageWith({ order: ORDER_NO }));
     expect(screen.getByRole('heading', { name: '付款成功，Pro 終身版已開通' })).toBeInTheDocument();
     expect(screen.getByText(ORDER_NO)).toBeInTheDocument();
@@ -97,6 +135,7 @@ describe('/checkout/complete page', () => {
 
   it('shows success for a paid order even when the URL says failed', async () => {
     mockFindOrderForUser.mockResolvedValue(PAID_ORDER);
+    mockGetProfile.mockResolvedValue(LIFETIME_PROFILE);
     render(await pageWith({ order: ORDER_NO, failed: '1' }));
     expect(screen.getByRole('heading', { name: '付款成功，Pro 終身版已開通' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '付款未完成' })).toBeNull();

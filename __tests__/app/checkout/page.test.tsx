@@ -60,6 +60,8 @@ describe('/checkout page', () => {
     expect(screen.getByText('NT$899')).toBeInTheDocument();
     expect(screen.getByText('buyer@example.com')).toBeInTheDocument();
     expect(screen.getByText('購買後 14 天內不滿意可退款')).toBeInTheDocument();
+    expect(screen.getByText('單檔最大 100MB（免費版 5MB）')).toBeInTheDocument();
+    expect(screen.queryByText(/批次轉換/)).toBeNull();
     const form = document.querySelector('form[action="/api/payment/ecpay/create"]');
     expect(form).not.toBeNull();
     expect(form).toHaveAttribute('method', 'post');
