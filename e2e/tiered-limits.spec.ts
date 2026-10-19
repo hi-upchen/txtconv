@@ -86,7 +86,7 @@ test('guest uploading a 9MB file sees the upgrade dialog with a working buy butt
   const checkoutEvents = (await readDataLayer(page)).filter((e) => e.event === 'begin_checkout');
   expect(checkoutEvents).toHaveLength(1);
   expect(checkoutEvents[0]).toMatchObject({
-    currency: 'USD',
+    currency: 'TWD',
     value: 30,
     item_name: 'lifetime',
     source_path: '/',
