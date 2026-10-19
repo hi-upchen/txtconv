@@ -47,8 +47,8 @@ const TEST_CVV = '222';
 const TEST_EXPIRY_MONTH = '12';
 const TEST_EXPIRY_YEAR = '30';
 const TEST_HOLDER_NAME = 'TEST USER';
-/** The mock page needs a mobile number. This one is made up. The mock page sends no SMS. */
-const TEST_PHONE = '0912345678';
+/** The mock page needs a mobile number. This one is invalid, so no real phone can get a text. */
+const TEST_PHONE = '0900000000';
 
 const EVIDENCE_DIR = 'test-results/ecpay';
 const EVIDENCE_FILE = `${EVIDENCE_DIR}/evidence.json`;
@@ -148,6 +148,8 @@ let pendingOrderNo: string;
 let paidOrderNo: string;
 
 test.beforeAll(async () => {
+  // This run must never reach the live merchant. Stop before creating anything.
+  expect(process.env.ECPAY_ENV, 'ECPAY_ENV must not be production for a sandbox run').not.toBe('production');
   expect(APP, 'NEXT_PUBLIC_APP_URL must be the public https ngrok URL').toMatch(/^https:\/\//);
   fs.rmSync(EVIDENCE_FILE, { force: true });
   user = await createE2eUser(APP);
@@ -291,10 +293,18 @@ test('happy path: log in, pay in the sandbox cashier, land on the success page, 
   const license = await readLicense(user.userId);
   record('order after payment', order);
   record('licence after payment', { license });
+  record('ECPay payment fields', {
+    ecpay_trade_no: order?.ecpay_trade_no,
+    payment_type: order?.payment_type,
+    rtn_code: order?.rtn_code,
+  });
   expect(order?.status).toBe('paid');
   expect(order?.amount_twd).toBe(899);
   expect(order?.simulate_paid).toBe(false);
-  expect(order?.ecpay_trade_no).toBeTruthy();
+  // ECPay's own trade number has 16 digits. Our hand-signed test callbacks start with "e2e".
+  // So this proves the paid state came from ECPay's callback.
+  expect(order?.ecpay_trade_no ?? '').not.toMatch(/^e2e/);
+  expect(order?.ecpay_trade_no ?? '').toMatch(/^\d{16}$/);
   expect(order?.paid_at).toBeTruthy();
   expect(license).toBe('lifetime');
 });
