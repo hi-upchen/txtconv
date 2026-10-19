@@ -37,6 +37,21 @@ export interface ParamMapping {
   ga4Param: string;
 }
 
+/** Custom events the GA4 event tag must forward, besides the ones it had from the start. */
+export const FORWARDED_EVENTS = ['login_started', 'login_succeeded', 'login_failed', 'purchase'];
+
+/**
+ * Parameters the GA4 event tag must map, besides the ones it had from the start.
+ * The login parameters use GA4 names that match their custom dimensions.
+ * The purchase parameters are GA4 standard names, so they need no dimension.
+ */
+export const FORWARDED_PARAMS: ParamMapping[] = [
+  { dataLayerKey: 'method', ga4Param: 'login_method' },
+  { dataLayerKey: 'reason', ga4Param: 'login_failure_reason' },
+  { dataLayerKey: 'transaction_id', ga4Param: 'transaction_id' },
+  { dataLayerKey: 'items', ga4Param: 'items' },
+];
+
 /**
  * Adds event names to a custom-event trigger regex of the form ^(a|b)$.
  * Names already present are left alone, so running twice changes nothing.
