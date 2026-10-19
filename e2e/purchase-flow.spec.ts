@@ -45,6 +45,14 @@ for (const path of ['/', '/srt', '/jianying', '/novel', '/csv', '/epub', '/dicti
     await page.goto(path);
     await expect(page.locator('a[href*="txtconv-pro"]')).toHaveCount(0);
     expect(await page.content()).not.toContain('US$30');
+    // Only the footer donation link may point at Gumroad.
+    const gumroadLinks = await page.locator('a[href*="gumroad.com"]').evaluateAll((links) =>
+      links.map((link) => link.getAttribute('href') ?? '')
+    );
+    for (const href of gumroadLinks) {
+      expect(href).toContain('/l/txtconv?');
+      expect(href).toContain('utm_content=footer');
+    }
   });
 }
 

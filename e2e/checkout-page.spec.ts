@@ -78,10 +78,25 @@ test('free test user on /checkout sees the NT$899 summary and the ECPay form', a
 test('lifetime test user is sent home from /checkout', async ({ page }) => {
   const status = await testLogin(page, 'lifetime');
   test.skip(status === 403, 'ENABLE_TEST_LOGIN=true is not set for the dev server');
+  expect(status).toBe(307);
 
   await page.goto('/checkout');
   await expect(page).toHaveURL(/\/$/);
   await expect(page.locator('#pricing')).toBeVisible();
+});
+
+test('dictionary upsell for a free user links to /checkout in the same tab', async ({ page }) => {
+  const status = await testLogin(page, 'free');
+  test.skip(status === 403, 'ENABLE_TEST_LOGIN=true is not set for the dev server');
+  expect(status).toBe(307);
+
+  await page.goto('/');
+  // Six lines pass the free limit of five pairs, which shows the upsell.
+  await page.getByPlaceholder(/代码,程式碼/).fill('a1,b1\na2,b2\na3,b3\na4,b4\na5,b5\na6,b6');
+  const upsell = page.getByRole('link', { name: '升級 Pro', exact: true });
+  await expect(upsell).toBeVisible();
+  await expect(upsell).toHaveAttribute('href', '/checkout');
+  await expect(upsell).not.toHaveAttribute('target');
 });
 
 test('/checkout/complete?error=1 shows the friendly error', async ({ page }) => {

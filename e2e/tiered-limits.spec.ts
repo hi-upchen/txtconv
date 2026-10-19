@@ -70,6 +70,8 @@ function readDataLayer(page: Page) {
 test('guest uploading a 9MB file sees the upgrade dialog with a working buy button', async ({
   page,
 }) => {
+  // Tag Manager is not under test. Blocking it keeps gtm.js from replacing push.
+  await page.route('**/googletagmanager.com/**', (route) => route.abort());
   await mirrorDataLayer(page);
   await page.goto('/');
 
