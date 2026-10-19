@@ -1,22 +1,13 @@
 /**
  * Purchase-flow and site smoke checks: the homepage pricing section must
  * render the Lifetime card at the current price with a buy link pointing
- * at the configured Gumroad product (opened in a new tab), and every SEO
- * landing page must respond 200 with its converter or upgrade CTA present.
- * Deliberately never navigates to gumroad.com itself — external checkout
- * is out of scope for e2e.
+ * at our own checkout page (same tab), and every SEO landing page must
+ * respond 200 with its converter or upgrade CTA present.
+ * Never navigates away from the site itself.
  */
 import { test, expect } from '@playwright/test';
 
-/**
- * Expected Gumroad product URL. The dev server reads it from .env as
- * NEXT_PUBLIC_GUMROAD_URL; the fallback keeps the assertion meaningful
- * when the Playwright process itself was started without that variable.
- */
-const GUMROAD_URL =
-  process.env.NEXT_PUBLIC_GUMROAD_URL ?? 'https://upchen.gumroad.com/l/txtconv-pro';
-
-test('homepage Lifetime card shows $30 and links to the Gumroad product', async ({ page }) => {
+test('homepage Lifetime card shows NT$899 and links to /checkout', async ({ page }) => {
   await page.goto('/');
 
   const pricing = page.locator('#pricing');
@@ -25,14 +16,13 @@ test('homepage Lifetime card shows $30 and links to the Gumroad product', async 
   // Lifetime card renders with the current one-time price
   await expect(pricing.getByText('Lifetime')).toBeVisible();
   await expect(pricing.getByText('終身授權')).toBeVisible();
-  await expect(pricing.getByText('$30')).toBeVisible();
+  await expect(pricing.getByText('NT$899')).toBeVisible();
 
-  // Buy link goes to the configured Gumroad product in a new tab
+  // Buy link goes to our own checkout page in the same tab
   const buyLink = pricing.getByRole('link', { name: /立即購買/ });
   await expect(buyLink).toBeVisible();
-  await expect(buyLink).toHaveAttribute('href', GUMROAD_URL);
-  await expect(buyLink).toHaveAttribute('target', '_blank');
-  await expect(buyLink).toHaveAttribute('rel', /noopener/);
+  await expect(buyLink).toHaveAttribute('href', '/checkout');
+  await expect(buyLink).not.toHaveAttribute('target');
 });
 
 // Landing pages that embed the converter: must load and show the file input.
