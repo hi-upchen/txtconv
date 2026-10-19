@@ -49,6 +49,8 @@ for (const path of ['/', '/srt', '/jianying', '/novel', '/csv', '/epub', '/dicti
     const gumroadLinks = await page.locator('a[href*="gumroad.com"]').evaluateAll((links) =>
       links.map((link) => link.getAttribute('href') ?? '')
     );
+    // Every page in this list renders the footer, so the donation link must exist.
+    expect(gumroadLinks.length).toBeGreaterThanOrEqual(1);
     for (const href of gumroadLinks) {
       expect(href).toContain('/l/txtconv?');
       expect(href).toContain('utm_content=footer');

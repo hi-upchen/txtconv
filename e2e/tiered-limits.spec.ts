@@ -71,9 +71,19 @@ test('guest uploading a 9MB file sees the upgrade dialog with a working buy butt
   page,
 }) => {
   // Tag Manager is not under test. Blocking it keeps gtm.js from replacing push.
-  await page.route('**/googletagmanager.com/**', (route) => route.abort());
+  // The layout always loads it, so the block must fire at least once.
+  let blockedTagManagerRequests = 0;
+  await page.route(
+    (url) =>
+      url.hostname === 'googletagmanager.com' || url.hostname.endsWith('.googletagmanager.com'),
+    (route) => {
+      blockedTagManagerRequests += 1;
+      return route.abort();
+    }
+  );
   await mirrorDataLayer(page);
   await page.goto('/');
+  await expect.poll(() => blockedTagManagerRequests).toBeGreaterThanOrEqual(1);
 
   await page.setInputFiles('input[type="file"]', OVERSIZED_FILE);
 
