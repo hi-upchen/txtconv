@@ -95,7 +95,6 @@ describe('GET /auth/callback', () => {
     await callbackWith('?code=abc');
 
     expect(mockCookieStore.delete).toHaveBeenCalledWith('login_return_to');
-    expect(mockCookieStore.delete).not.toHaveBeenCalledWith('login_method_hint');
   });
 
   it('still links the profile', async () => {

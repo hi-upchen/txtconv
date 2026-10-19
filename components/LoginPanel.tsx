@@ -86,6 +86,8 @@ export default function LoginPanel({
   };
 
   const handleGoogleCredential = async (idToken: string, rawNonce: string) => {
+    // Ignore a token while another sign-in is running.
+    if (isBusy || isGoogleSigningIn) return;
     setIsGoogleSigningIn(true);
     setErrorMessage('');
 
@@ -185,7 +187,7 @@ export default function LoginPanel({
   const inputClass =
     'w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors';
   const primaryButtonClass = `w-full py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors ${
-    isBusy ? 'opacity-70 cursor-not-allowed' : ''
+    isBusy || isGoogleSigningIn ? 'opacity-70 cursor-not-allowed' : ''
   }`;
 
   const errorAlert = errorMessage && (
@@ -219,7 +221,7 @@ export default function LoginPanel({
             required
           />
           {errorAlert}
-          <button className={primaryButtonClass} type="submit" disabled={isBusy || code.length !== CODE_LENGTH}>
+          <button className={primaryButtonClass} type="submit" disabled={isBusy || isGoogleSigningIn || code.length !== CODE_LENGTH}>
             {isBusy ? '驗證中...' : '確認'}
           </button>
         </form>
@@ -227,7 +229,7 @@ export default function LoginPanel({
           <button
             type="button"
             onClick={handleResend}
-            disabled={isBusy || cooldown > 0}
+            disabled={isBusy || isGoogleSigningIn || cooldown > 0}
             className="text-gray-500 hover:text-primary transition-colors disabled:text-gray-300 disabled:cursor-not-allowed"
           >
             {cooldown > 0 ? `${cooldown} 秒後可重寄` : '重寄驗證碼'}
@@ -287,7 +289,7 @@ export default function LoginPanel({
           required
         />
         {errorAlert}
-        <button className={primaryButtonClass} type="submit" disabled={isBusy}>
+        <button className={primaryButtonClass} type="submit" disabled={isBusy || isGoogleSigningIn}>
           {isBusy ? '傳送中...' : '寄送驗證碼'}
         </button>
       </form>

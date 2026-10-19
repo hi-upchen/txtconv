@@ -143,7 +143,7 @@ describe('LoginPanel', () => {
       expect(screen.getByLabelText('Email')).toBeInTheDocument();
     });
 
-    it('shows a Google status line while signing in, without relabelling the email button', async () => {
+    it('shows a Google status line while signing in and disables the email button without relabelling it', async () => {
       let finish: (v: unknown) => void = () => {};
       mockSignInWithIdToken.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
       render(<LoginPanel />);
@@ -151,11 +151,41 @@ describe('LoginPanel', () => {
       act(() => { void mockGoogleProps.onCredential('id-token', 'raw-nonce'); });
 
       expect(await screen.findByRole('status')).toHaveTextContent('Google 登入中…');
-      expect(screen.getByRole('button', { name: '寄送驗證碼' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: '寄送驗證碼' })).toBeDisabled();
       expect(screen.queryByText('傳送中...')).not.toBeInTheDocument();
 
       await act(async () => finish({ data: {}, error: { message: 'bad', code: 'x' } }));
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '寄送驗證碼' })).toBeEnabled();
+    });
+
+    it('ignores a second credential while the first sign-in is pending', async () => {
+      let finish: (v: unknown) => void = () => {};
+      mockSignInWithIdToken.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+      render(<LoginPanel />);
+
+      act(() => { void mockGoogleProps.onCredential('id-token', 'raw-nonce'); });
+      await screen.findByRole('status');
+      await act(async () => mockGoogleProps.onCredential('id-token-2', 'raw-nonce'));
+
+      expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+      await act(async () => finish({ data: {}, error: { message: 'bad', code: 'x' } }));
+    });
+
+    it('ignores a Google credential while an email code is being sent', async () => {
+      let finish: (v: unknown) => void = () => {};
+      mockSignInWithOtp.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+      const user = userEvent.setup();
+      render(<LoginPanel />);
+
+      await user.type(screen.getByLabelText('Email'), 'me@example.com');
+      await user.click(screen.getByRole('button', { name: '寄送驗證碼' }));
+      await screen.findByText('傳送中...');
+      await act(async () => mockGoogleProps.onCredential('id-token', 'raw-nonce'));
+
+      expect(mockSignInWithIdToken).not.toHaveBeenCalled();
+      await act(async () => finish({ data: {}, error: null }));
+      await screen.findByLabelText('驗證碼');
     });
 
     it('treats a thrown sign-in error like a returned one', async () => {

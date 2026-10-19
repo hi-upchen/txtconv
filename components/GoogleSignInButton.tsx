@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { GOOGLE_CLIENT_ID, createNonce, isInAppBrowser, loadGoogleIdentity } from '@/lib/auth/google-identity';
+import {
+  ensureGoogleInitialized,
+  isInAppBrowser,
+  registerGoogleCredentialHandler,
+} from '@/lib/auth/google-identity';
 
 interface GoogleSignInButtonProps {
   /** Runs when the user clicks the button. Google's popup opens after this. */
@@ -16,8 +20,9 @@ interface GoogleSignInButtonProps {
  * Renders Google's own "Sign in with Google" button.
  * Google draws the button inside this element and runs the popup itself.
  *
- * The callbacks are stored in a ref. Google keeps the first callback it receives.
- * The ref makes Google call the latest props instead.
+ * The callbacks are stored in a ref, so Google always reaches the latest props.
+ * Google has one page-wide setup. This button registers a handler for tokens
+ * and removes it on unmount. The newest registered button gets each token.
  */
 export default function GoogleSignInButton(props: GoogleSignInButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,22 +41,18 @@ export default function GoogleSignInButton(props: GoogleSignInButtonProps) {
       return;
     }
 
+    const unregister = registerGoogleCredentialHandler((idToken, rawNonce) =>
+      propsRef.current.onCredential(idToken, rawNonce)
+    );
+
     (async () => {
       try {
-        await loadGoogleIdentity();
+        await ensureGoogleInitialized();
         const container = containerRef.current;
         const gis = window.google?.accounts.id;
         if (!gis) throw new Error('Google Identity is missing after load');
         if (cancelled || !container) return;
 
-        const nonce = await createNonce();
-        if (cancelled) return;
-
-        gis.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          nonce: nonce.hashed,
-          callback: ({ credential }) => propsRef.current.onCredential(credential, nonce.raw),
-        });
         gis.renderButton(container, {
           type: 'standard',
           theme: 'outline',
@@ -71,6 +72,7 @@ export default function GoogleSignInButton(props: GoogleSignInButtonProps) {
 
     return () => {
       cancelled = true;
+      unregister();
     };
   }, []);
 

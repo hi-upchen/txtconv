@@ -6,12 +6,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import type { GoogleIdConfiguration, GoogleButtonOptions } from '@/types/google-identity';
 
-const mockLoad = jest.fn();
-const mockCreateNonce = jest.fn();
+const mockEnsure = jest.fn();
+const mockRegister = jest.fn();
 jest.mock('@/lib/auth/google-identity', () => ({
-  GOOGLE_CLIENT_ID: 'client-123',
-  loadGoogleIdentity: () => mockLoad(),
-  createNonce: () => mockCreateNonce(),
+  ensureGoogleInitialized: () => mockEnsure(),
+  registerGoogleCredentialHandler: (handler: unknown) => mockRegister(handler),
   isInAppBrowser: (ua: string) => /\bLine\//.test(ua),
 }));
 
@@ -28,17 +27,16 @@ describe('GoogleSignInButton', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     window.google = { accounts: { id: { initialize, renderButton } } };
-    mockLoad.mockResolvedValue(undefined);
-    mockCreateNonce.mockResolvedValue({ raw: 'raw-nonce', hashed: 'hashed-nonce' });
+    mockEnsure.mockResolvedValue(undefined);
+    mockRegister.mockReturnValue(jest.fn());
   });
 
-  it('initializes Google with the client id and the hashed nonce, then renders the button', async () => {
+  it('waits for the shared Google setup, then renders the button', async () => {
     renderIt();
     await waitFor(() => expect(renderButton).toHaveBeenCalled());
 
-    expect(initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ client_id: 'client-123', nonce: 'hashed-nonce' })
-    );
+    expect(mockEnsure).toHaveBeenCalledTimes(1);
+    expect(initialize).not.toHaveBeenCalled();
     const [element, options] = renderButton.mock.calls[0];
     expect(element).toBe(screen.getByTestId('google-signin-button'));
     expect(options).toEqual(
@@ -55,17 +53,29 @@ describe('GoogleSignInButton', () => {
     expect(props.onStart).toHaveBeenCalledTimes(1);
   });
 
-  it('passes the ID token and the raw nonce to onCredential', async () => {
+  it('registers a handler that passes the ID token and raw nonce to the latest onCredential', async () => {
     const props = renderIt();
-    await waitFor(() => expect(initialize).toHaveBeenCalled());
+    expect(mockRegister).toHaveBeenCalledTimes(1);
 
-    initialize.mock.calls[0][0].callback({ credential: 'id-token' });
+    mockRegister.mock.calls[0][0]('id-token', 'raw-nonce');
 
     expect(props.onCredential).toHaveBeenCalledWith('id-token', 'raw-nonce');
   });
 
+  it('unregisters its handler on unmount', () => {
+    const unregister = jest.fn();
+    mockRegister.mockReturnValue(unregister);
+    const { unmount } = render(
+      <GoogleSignInButton onStart={jest.fn()} onCredential={jest.fn()} onUnavailable={jest.fn()} />
+    );
+
+    unmount();
+
+    expect(unregister).toHaveBeenCalledTimes(1);
+  });
+
   it('calls onUnavailable and renders nothing when the script fails to load', async () => {
-    mockLoad.mockRejectedValue(new Error('blocked'));
+    mockEnsure.mockRejectedValue(new Error('blocked'));
     const props = renderIt();
 
     await waitFor(() => expect(props.onUnavailable).toHaveBeenCalledTimes(1));
@@ -74,7 +84,7 @@ describe('GoogleSignInButton', () => {
 
   it('does not render after unmount', async () => {
     let finishLoad: () => void = () => {};
-    mockLoad.mockReturnValue(new Promise<void>((resolve) => { finishLoad = resolve; }));
+    mockEnsure.mockReturnValue(new Promise<void>((resolve) => { finishLoad = resolve; }));
     const { unmount } = render(
       <GoogleSignInButton onStart={jest.fn()} onCredential={jest.fn()} onUnavailable={jest.fn()} />
     );
@@ -84,14 +94,6 @@ describe('GoogleSignInButton', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(renderButton).not.toHaveBeenCalled();
-  });
-
-  it('calls onUnavailable once and renders nothing when the nonce cannot be made', async () => {
-    mockCreateNonce.mockRejectedValue(new Error('crypto.subtle is undefined'));
-    const props = renderIt();
-
-    await waitFor(() => expect(props.onUnavailable).toHaveBeenCalledTimes(1));
     expect(renderButton).not.toHaveBeenCalled();
   });
 
@@ -117,7 +119,8 @@ describe('GoogleSignInButton', () => {
       const props = renderIt();
 
       await waitFor(() => expect(props.onUnavailable).toHaveBeenCalledTimes(1));
-      expect(mockLoad).not.toHaveBeenCalled();
+      expect(mockEnsure).not.toHaveBeenCalled();
+      expect(mockRegister).not.toHaveBeenCalled();
       expect(renderButton).not.toHaveBeenCalled();
     });
   });
