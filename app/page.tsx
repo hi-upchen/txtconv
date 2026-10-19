@@ -113,10 +113,7 @@ export default async function Home() {
 
         <CustomDictEditor user={user} profile={profile} />
 
-        <PricingSection
-          gumroadUrl={process.env.NEXT_PUBLIC_GUMROAD_URL || 'https://gumroad.com'}
-          licenseType={profile?.license_type ?? 'free'}
-        />
+        <PricingSection licenseType={profile?.license_type ?? 'free'} />
 
         <FaqSection />
 
@@ -134,8 +131,8 @@ export default async function Home() {
                 '簡轉繁線上工具：免費將 txt 小說、srt 字幕、epub 電子書、csv、xml 檔案從簡體轉繁體（台灣繁體中文），檔案不上傳、全程在瀏覽器完成，自動偵測編碼並支援自訂字典。',
               inLanguage: 'zh-TW',
               offers: [
-                { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD' },
-                { '@type': 'Offer', name: 'Lifetime', price: '30', priceCurrency: 'USD' },
+                { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'TWD' },
+                { '@type': 'Offer', name: 'Lifetime', price: '899', priceCurrency: 'TWD' },
               ],
             }),
           }}

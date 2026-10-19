@@ -2,6 +2,11 @@
  * @jest-environment node
  */
 import { GET } from '@/app/api/dev/test-login/route';
+import { NextRequest } from 'next/server';
+
+function req(query = '') {
+  return new NextRequest(`http://localhost:3000/api/dev/test-login${query}`);
+}
 
 // Mock next/headers
 const mockCookieSet = jest.fn();
@@ -28,7 +33,7 @@ describe('/api/dev/test-login', () => {
     process.env.NODE_ENV = 'production';
     process.env.ENABLE_TEST_LOGIN = 'true';
 
-    const response = await GET();
+    const response = await GET(req());
 
     expect(response.status).toBe(403);
     const data = await response.json();
@@ -39,7 +44,7 @@ describe('/api/dev/test-login', () => {
     process.env.NODE_ENV = 'development';
     process.env.ENABLE_TEST_LOGIN = undefined;
 
-    const response = await GET();
+    const response = await GET(req());
 
     expect(response.status).toBe(403);
     const data = await response.json();
@@ -51,7 +56,7 @@ describe('/api/dev/test-login', () => {
     process.env.ENABLE_TEST_LOGIN = 'true';
     process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000';
 
-    const response = await GET();
+    const response = await GET(req());
 
     expect(response.status).toBe(307); // redirect
     expect(mockCookieSet).toHaveBeenCalledWith(
@@ -61,5 +66,39 @@ describe('/api/dev/test-login', () => {
         path: '/',
       })
     );
+    const cookieValue = JSON.parse(mockCookieSet.mock.calls[0][1] as string);
+    expect(cookieValue.license).toBe('lifetime');
+  });
+
+  it('stores license=free in the session cookie when asked', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.ENABLE_TEST_LOGIN = 'true';
+
+    const response = await GET(req('?license=free'));
+
+    expect(response.status).toBe(307);
+    const cookieValue = JSON.parse(mockCookieSet.mock.calls[0][1] as string);
+    expect(cookieValue.license).toBe('free');
+    expect(cookieValue.user.id).toBeDefined();
+  });
+
+  it('falls back to lifetime for unknown license values', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.ENABLE_TEST_LOGIN = 'true';
+
+    await GET(req('?license=platinum'));
+
+    const cookieValue = JSON.parse(mockCookieSet.mock.calls[0][1] as string);
+    expect(cookieValue.license).toBe('lifetime');
+  });
+
+  it('accepts license=lifetime explicitly', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.ENABLE_TEST_LOGIN = 'true';
+
+    await GET(req('?license=lifetime'));
+
+    const cookieValue = JSON.parse(mockCookieSet.mock.calls[0][1] as string);
+    expect(cookieValue.license).toBe('lifetime');
   });
 });

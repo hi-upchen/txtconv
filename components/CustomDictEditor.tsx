@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import type { User } from '@supabase/supabase-js';
 import type { Profile } from '@/types/user';
 import {
@@ -336,12 +337,12 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
                         <span className="material-symbols-outlined text-amber-500 text-lg">warning</span>
                         <span>免費版僅支援 {limit} 組對照，升級以解鎖 10,000 組</span>
                       </div>
-                      <a
-                        href={process.env.NEXT_PUBLIC_GUMROAD_URL || '#pricing'}
+                      <Link
+                        href="/checkout"
                         className="shrink-0 px-4 py-1.5 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors"
                       >
                         升級 Pro
-                      </a>
+                      </Link>
                     </div>
                   )}
 

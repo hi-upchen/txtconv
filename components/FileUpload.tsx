@@ -27,13 +27,6 @@ import type { LicenseType } from '@/types/user';
 const PAYWALL_DIALOG_SHOWN_KEY = 'paywall_dialog_shown';
 
 /**
- * Payment page the upgrade dialog sends buyers to. Read from the environment
- * the same way the homepage pricing section does, with a fallback so the
- * button is never a dead link in an environment that forgot the variable.
- */
-const GUMROAD_URL = process.env.NEXT_PUBLIC_GUMROAD_URL || 'https://gumroad.com';
-
-/**
  * Formats a byte count as megabytes with two decimals, matching the wording
  * of the size-limit rejection message the validator produces.
  */
@@ -585,7 +578,7 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
         onClose={closePaywallDialog}
         fileName={paywallFile.name}
         fileSizeMB={paywallFile.sizeMB}
-        gumroadUrl={GUMROAD_URL}
+        checkoutHref="/checkout"
       />
     </div>
   );

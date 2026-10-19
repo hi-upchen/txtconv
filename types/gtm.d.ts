@@ -57,6 +57,20 @@ export interface UpgradeCtaClickedEvent {
   source_path: string;
 }
 
+/**
+ * A completed ECPay payment. The completion page fires it once per order.
+ * Parameter names follow GA4's recommended purchase event.
+ * Revenue reports then work without extra mapping.
+ */
+export interface PurchaseEvent {
+  event: 'purchase';
+  /** Our order number, the ECPay MerchantTradeNo. Unique per purchase. */
+  transaction_id: string;
+  value: number;
+  currency: string;
+  items: Array<{ item_name: string; price: number; quantity: number }>;
+}
+
 /** How the user signed in. Also the value of the login_just_succeeded cookie. */
 export type LoginMethod = 'google' | 'email_code' | 'magic_link';
 
@@ -100,7 +114,8 @@ export type TrackedEvent =
   | UpgradeCtaClickedEvent
   | LoginStartedEvent
   | LoginSucceededEvent
-  | LoginFailedEvent;
+  | LoginFailedEvent
+  | PurchaseEvent;
 
 export type DataLayerEvent = TrackedEvent | DataLayerKeysReset;
 

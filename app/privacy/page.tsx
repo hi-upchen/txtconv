@@ -4,11 +4,11 @@ import Header from '@/components/Header';
 import { getAuthUser, getProfile } from '@/lib/actions/auth';
 
 /**
- * Privacy policy page. Discloses what data the service collects
- * (account email, custom dictionary, analytics) and how it is used;
- * files are converted entirely in the browser and never uploaded.
- * Linked from the site footer and required for user trust and
- * payment-provider compliance.
+ * Privacy policy page. It lists what data the service collects.
+ * That covers account email, custom dictionary, analytics and payment orders.
+ * It also says how the data is used and which order records are kept.
+ * Files are converted in the browser and never uploaded.
+ * The site footer links here.
  */
 
 export const metadata: Metadata = {
@@ -28,7 +28,7 @@ export default async function PrivacyPage() {
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-12 space-y-8 text-gray-700">
         <h1 className="text-3xl font-bold text-gray-800">隱私權政策</h1>
-        <p className="text-sm text-gray-500">最後更新：2026 年 7 月 3 日</p>
+        <p className="text-sm text-gray-500">最後更新：2026 年 10 月 19 日</p>
 
         <section className="space-y-3">
           <h2 className="text-xl font-bold text-gray-800">我們收集哪些資料</h2>
@@ -49,9 +49,10 @@ export default async function PrivacyPage() {
               Analytics 收集匿名的使用統計（如頁面瀏覽、轉換次數、檔案格式類型），用於改善產品。
             </li>
             <li>
-              <strong>付款資料：</strong>Pro 方案付款由 Gumroad
-              處理，我們不會接觸或儲存你的信用卡資料；我們僅會收到訂單編號、購買者
-              email 與付款狀態，用於開通你的方案。
+              <strong>付款資料：</strong>Pro 方案付款由綠界科技（ECPay）處理，本站不會接觸或儲存完整的信用卡號。
+              本站保存的訂單資料包括：訂單編號、綠界交易編號、金額、付款方式、訂單建立時間、付款時間、付款狀態、
+              下單時的 email 與帳號識別碼，以及綠界回傳的交易結果紀錄（含交易結果代碼、是否為模擬付款，以及可能包含的遮蔽部分卡號，例如前六碼與末四碼）。
+              這些訂單紀錄屬於會計紀錄，刪除帳號後仍會保留。
             </li>
           </ul>
         </section>
@@ -72,6 +73,7 @@ export default async function PrivacyPage() {
               hi.upchen@gmail.com
             </a>{' '}
             要求刪除你的帳號或自訂字典資料，我們會在 30 天內處理完成。
+            依會計需要，付款訂單紀錄（見上方「付款資料」）在刪除帳號後仍會保留。
           </p>
         </section>
 
