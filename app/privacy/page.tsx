@@ -4,11 +4,11 @@ import Header from '@/components/Header';
 import { getAuthUser, getProfile } from '@/lib/actions/auth';
 
 /**
- * Privacy policy page. Discloses what data the service collects
- * (account email, custom dictionary, analytics) and how it is used;
- * files are converted entirely in the browser and never uploaded.
- * Linked from the site footer and required for user trust and
- * payment-provider compliance.
+ * Privacy policy page. It lists what data the service collects.
+ * That covers account email, custom dictionary, analytics and payment orders.
+ * It also says how the data is used and which order records are kept.
+ * Files are converted in the browser and never uploaded.
+ * The site footer links here.
  */
 
 export const metadata: Metadata = {
@@ -50,8 +50,8 @@ export default async function PrivacyPage() {
             </li>
             <li>
               <strong>付款資料：</strong>Pro 方案付款由綠界科技（ECPay）處理，本站不會接觸或儲存完整的信用卡號。
-              本站保存的訂單資料包括：訂單編號、綠界交易編號、金額、付款方式、付款時間、付款狀態、
-              下單時的 email 與帳號識別碼，以及綠界回傳的交易結果紀錄（可能包含遮蔽後的部分卡號，例如前六碼與末四碼）。
+              本站保存的訂單資料包括：訂單編號、綠界交易編號、金額、付款方式、訂單建立時間、付款時間、付款狀態、
+              下單時的 email 與帳號識別碼，以及綠界回傳的交易結果紀錄（含交易結果代碼、是否為模擬付款，以及可能包含的遮蔽部分卡號，例如前六碼與末四碼）。
               這些訂單紀錄屬於會計紀錄，刪除帳號後仍會保留。
             </li>
           </ul>
@@ -73,6 +73,7 @@ export default async function PrivacyPage() {
               hi.upchen@gmail.com
             </a>{' '}
             要求刪除你的帳號或自訂字典資料，我們會在 30 天內處理完成。
+            依會計需要，付款訂單紀錄（見上方「付款資料」）在刪除帳號後仍會保留。
           </p>
         </section>
 
