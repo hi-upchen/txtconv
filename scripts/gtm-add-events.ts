@@ -1,7 +1,8 @@
 // scripts/gtm-add-events.ts
 //
-// Adds the three login events to the txtconv Tag Manager container and
-// publishes a new version. Safe to run again: every step checks first.
+// Makes the txtconv Tag Manager container forward the login events and the
+// purchase event, then publishes a new version. Safe to run again.
+// Every step checks first and changes nothing that is already there.
 //
 // Usage:
 //   GTM_TOKEN=$(gcloud auth print-access-token \
@@ -11,12 +12,13 @@
 //   npx --yes tsx scripts/gtm-add-events.ts --dry-run  # only print what would change
 import 'dotenv/config';
 import {
+  FORWARDED_EVENTS,
+  FORWARDED_PARAMS,
   addSettingsRows,
   extendEventRegex,
   pickWorkspace,
   stripReadOnly,
   type GtmParameter,
-  type ParamMapping,
 } from './gtm-add-events.helpers';
 
 const TOKEN = process.env.GTM_TOKEN;
@@ -26,12 +28,8 @@ const BASE = 'https://tagmanager.googleapis.com/tagmanager/v2';
 const PARENT = 'accounts/6364290968/containers/257354615';
 const TRIGGER_NAME = 'CE - product & funnel events';
 const EVENT_TAG_NAME = 'GA4 event - forward dataLayer events';
-const NEW_EVENTS = ['login_started', 'login_succeeded', 'login_failed'];
-// dataLayer key -> GA4 parameter. The GA4 custom dimensions use the GA4 names.
-const NEW_PARAMS: ParamMapping[] = [
-  { dataLayerKey: 'method', ga4Param: 'login_method' },
-  { dataLayerKey: 'reason', ga4Param: 'login_failure_reason' },
-];
+const NEW_EVENTS = FORWARDED_EVENTS;
+const NEW_PARAMS = FORWARDED_PARAMS;
 
 interface Named { name: string; path: string; fingerprint: string }
 interface Trigger extends Named { customEventFilter?: Array<{ type: string; parameter: GtmParameter[] }> }
@@ -96,7 +94,7 @@ async function main() {
   if (!regexParam?.value) throw new Error(`Trigger ${TRIGGER_NAME} has no event regex`);
   const newRegex = extendEventRegex(regexParam.value, NEW_EVENTS);
   if (newRegex === regexParam.value) {
-    console.log('trigger already lists the login events');
+    console.log('trigger already lists every forwarded event');
   } else {
     console.log(`update trigger regex -> ${newRegex}`);
     changed = true;
@@ -114,7 +112,7 @@ async function main() {
   if (!table?.list) throw new Error(`Tag ${EVENT_TAG_NAME} has no eventSettingsTable`);
   const { rows, added } = addSettingsRows(table.list, NEW_PARAMS);
   if (added.length === 0) {
-    console.log('tag already maps the login parameters');
+    console.log('tag already maps every forwarded parameter');
   } else {
     console.log(`add tag parameters: ${added.join(', ')}`);
     changed = true;
@@ -137,8 +135,8 @@ async function main() {
     'POST',
     `${ws}:create_version`,
     {
-      name: `login events ${new Date().toISOString().slice(0, 10)}`,
-      notes: 'Forward login_started / login_succeeded / login_failed with login_method and login_failure_reason',
+      name: `forward events ${new Date().toISOString().slice(0, 10)}`,
+      notes: `Forward ${NEW_EVENTS.join(' / ')} with ${NEW_PARAMS.map((p) => p.ga4Param).join(', ')}`,
     }
   );
   if (version.compilerError) throw new Error('Version has compiler errors; nothing was published');
