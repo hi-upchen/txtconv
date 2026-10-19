@@ -1,10 +1,9 @@
 /**
- * End-to-end checks for license-tier file-size limits: a guest dropping a
- * file over the free 5MB limit is shown the upgrade dialog, the dialog's buy
- * button points at the configured payment page and reports the checkout step
- * to analytics, and the same dialog is reachable from the rejected file's row
- * on a landing page (where the previous "#pricing" anchor link did nothing
- * because that section only exists on the homepage).
+ * End-to-end checks for license-tier file-size limits.
+ *   - A guest dropping a file over the free 5MB limit sees the upgrade dialog.
+ *   - The dialog's buy button is a same-tab link to /checkout.
+ *   - Clicking it reports the checkout step to analytics at NT$899.
+ *   - The rejected file's row reopens the same dialog on a landing page.
  */
 import { test, expect, type Page } from '@playwright/test';
 
@@ -21,21 +20,57 @@ const OVERSIZED_FILE = {
   buffer: Buffer.from('简体软件测试\n'.repeat(497_000)),
 };
 
-/** Reads the events pushed onto the Google Tag Manager dataLayer so far. */
-function readDataLayer(page: Page) {
-  return page.evaluate(() =>
-    (window as unknown as { dataLayer: Array<Record<string, unknown>> }).dataLayer.slice()
-  );
+/**
+ * Mirrors every dataLayer push into sessionStorage before any page script runs.
+ * Session storage survives a same-origin navigation, so a test can still read
+ * the events after a click moves the tab to another page.
+ */
+async function mirrorDataLayer(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { dataLayer?: unknown[] };
+    const mirror = (event: unknown) => {
+      try {
+        const list = JSON.parse(sessionStorage.getItem('e2e_dataLayer') ?? '[]');
+        list.push(event);
+        sessionStorage.setItem('e2e_dataLayer', JSON.stringify(list));
+      } catch {
+        // Storage is unavailable. The test then sees no events and fails.
+      }
+    };
+    // Page scripts reassign window.dataLayer, so wrap each array only once.
+    const wrapped = new WeakSet<object>();
+    const wrap = (list: unknown[]) => {
+      if (wrapped.has(list)) return list;
+      wrapped.add(list);
+      const originalPush = list.push.bind(list);
+      list.push = (...items: unknown[]) => {
+        items.forEach(mirror);
+        return originalPush(...items);
+      };
+      return list;
+    };
+    let layer = wrap(w.dataLayer ?? []);
+    Object.defineProperty(window, 'dataLayer', {
+      configurable: true,
+      get: () => layer,
+      set: (value: unknown[]) => {
+        layer = wrap(value);
+      },
+    });
+  });
 }
 
-test.beforeEach(async ({ context }) => {
-  // Abort any request to the payment provider so the test never touches it.
-  await context.route(/ecpay\.com\.tw/, (route) => route.abort());
-});
+/** Reads the events pushed onto the dataLayer, even after a page navigation. */
+function readDataLayer(page: Page) {
+  return page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('e2e_dataLayer') ?? '[]') as Array<Record<string, unknown>>
+  );
+}
 
 test('guest uploading a 9MB file sees the upgrade dialog with a working buy button', async ({
   page,
 }) => {
+  await mirrorDataLayer(page);
   await page.goto('/');
 
   await page.setInputFiles('input[type="file"]', OVERSIZED_FILE);
@@ -71,8 +106,10 @@ test('guest uploading a 9MB file sees the upgrade dialog with a working buy butt
     '/#pricing'
   );
 
-  // Clicking the buy button reports exactly one checkout step at the shown price
+  // Clicking the buy button reports one checkout step at the shown price.
+  // The events are read from session storage because the click changes page.
   await buyLink.click();
+  await page.waitForURL('**/checkout');
   const checkoutEvents = (await readDataLayer(page)).filter((e) => e.event === 'begin_checkout');
   expect(checkoutEvents).toHaveLength(1);
   expect(checkoutEvents[0]).toMatchObject({
@@ -81,9 +118,7 @@ test('guest uploading a 9MB file sees the upgrade dialog with a working buy butt
     item_name: 'lifetime',
     source_path: '/',
   });
-
-  // The click navigates this same tab to the checkout page
-  await expect(page).toHaveURL(/\/checkout/);
+  await expect(page.getByRole('heading', { name: '購買 Pro 終身版' })).toBeVisible();
 });
 
 test('rejected row on the /novel landing page opens the upgrade dialog', async ({ page }) => {
