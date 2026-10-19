@@ -15,8 +15,7 @@
 
 import crypto from 'crypto';
 
-/** The one-time lifetime price in New Taiwan Dollars. The only copy on the server. */
-export const PRO_LIFETIME_PRICE_TWD = 899;
+export { PRO_LIFETIME_PRICE_TWD } from './price';
 
 /** Item label on the ECPay cashier page. At most 400 characters. */
 export const PRO_ITEM_NAME = '簡轉繁 Pro 終身版';

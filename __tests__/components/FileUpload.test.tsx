@@ -31,13 +31,6 @@ document.createElement = jest.fn((tagName) => {
   return element;
 });
 
-/**
- * Payment page the upgrade dialog links to. Computed exactly like the
- * component does, so the assertion holds both locally (where .env supplies
- * the real product URL) and in continuous integration (where it does not).
- */
-const EXPECTED_GUMROAD_URL = process.env.NEXT_PUBLIC_GUMROAD_URL || 'https://gumroad.com';
-
 describe('FileUpload Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -276,10 +269,10 @@ describe('FileUpload Component', () => {
     // Body copy names the rejected file and its size
     expect(screen.getByText(/「novel.txt」大小為 9.00MB/)).toBeInTheDocument();
 
-    // The buy button is a real link to the configured payment page
-    expect(
-      screen.getByRole('link', { name: /升級 Pro 終身版 US\$30/ })
-    ).toHaveAttribute('href', EXPECTED_GUMROAD_URL);
+    // The buy button is a same-tab link to our own checkout page
+    const buyLink = screen.getByRole('link', { name: /升級 Pro 終身版 NT\$899/ });
+    expect(buyLink).toHaveAttribute('href', '/checkout');
+    expect(buyLink).not.toHaveAttribute('target');
   });
 
   it('should close the upgrade dialog when dismissed', async () => {

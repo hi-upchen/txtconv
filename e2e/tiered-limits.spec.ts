@@ -9,14 +9,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Expected payment-page URL. The dev server reads it from .env as
- * NEXT_PUBLIC_GUMROAD_URL; the fallback keeps the assertion meaningful when
- * the Playwright process itself was started without that variable.
- */
-const GUMROAD_URL =
-  process.env.NEXT_PUBLIC_GUMROAD_URL ?? 'https://upchen.gumroad.com/l/txtconv-pro';
-
-/**
  * A file comfortably over the free tier's 5MB limit and under the paid
  * 100MB one, built in memory at run time. It used to be read from a fixed
  * path on disk, which broke the moment that file was cleaned up; generating
@@ -37,9 +29,8 @@ function readDataLayer(page: Page) {
 }
 
 test.beforeEach(async ({ context }) => {
-  // The buy button is a real outbound link. Abort any request to the payment
-  // provider so the test never touches their servers.
-  await context.route(/gumroad\.com/, (route) => route.abort());
+  // Abort any request to the payment provider so the test never touches it.
+  await context.route(/ecpay\.com\.tw/, (route) => route.abort());
 });
 
 test('guest uploading a 9MB file sees the upgrade dialog with a working buy button', async ({
@@ -69,11 +60,10 @@ test('guest uploading a 9MB file sees the upgrade dialog with a working buy butt
     dialog.getByRole('heading', { name: '檔案超過免費版 5MB 上限' })
   ).toBeVisible();
 
-  // Buy button is a real link to the configured payment page, in a new tab
-  const buyLink = dialog.getByRole('link', { name: /升級 Pro 終身版 US\$30/ });
-  await expect(buyLink).toHaveAttribute('href', GUMROAD_URL);
-  await expect(buyLink).toHaveAttribute('target', '_blank');
-  await expect(buyLink).toHaveAttribute('rel', /noopener/);
+  // Buy button is a same-tab link to our own checkout page
+  const buyLink = dialog.getByRole('link', { name: /升級 Pro 終身版 NT\$899/ });
+  await expect(buyLink).toHaveAttribute('href', '/checkout');
+  await expect(buyLink).not.toHaveAttribute('target');
 
   // The secondary link works off the homepage too, hence the absolute path
   await expect(dialog.getByRole('link', { name: '查看完整方案比較' })).toHaveAttribute(
@@ -87,14 +77,13 @@ test('guest uploading a 9MB file sees the upgrade dialog with a working buy butt
   expect(checkoutEvents).toHaveLength(1);
   expect(checkoutEvents[0]).toMatchObject({
     currency: 'TWD',
-    value: 30,
+    value: 899,
     item_name: 'lifetime',
     source_path: '/',
   });
 
-  // Dismissing closes the dialog
-  await dialog.getByRole('button', { name: '稍後再說' }).click();
-  await expect(page.getByRole('dialog')).toBeHidden();
+  // The click navigates this same tab to the checkout page
+  await expect(page).toHaveURL(/\/checkout/);
 });
 
 test('rejected row on the /novel landing page opens the upgrade dialog', async ({ page }) => {
