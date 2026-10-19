@@ -27,7 +27,8 @@ describe('GoogleSignInButton', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     window.google = { accounts: { id: { initialize, renderButton } } };
-    mockEnsure.mockResolvedValue(undefined);
+    // Setup resolves to Google's API object, like the real ensureGoogleInitialized.
+    mockEnsure.mockImplementation(() => Promise.resolve(window.google!.accounts.id));
     mockRegister.mockReturnValue(jest.fn());
   });
 
@@ -84,7 +85,7 @@ describe('GoogleSignInButton', () => {
 
   it('does not render after unmount', async () => {
     let finishLoad: () => void = () => {};
-    mockEnsure.mockReturnValue(new Promise<void>((resolve) => { finishLoad = resolve; }));
+    mockEnsure.mockReturnValue(new Promise((resolve) => { finishLoad = () => resolve(window.google!.accounts.id); }));
     const { unmount } = render(
       <GoogleSignInButton onStart={jest.fn()} onCredential={jest.fn()} onUnavailable={jest.fn()} />
     );
@@ -94,14 +95,6 @@ describe('GoogleSignInButton', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(renderButton).not.toHaveBeenCalled();
-  });
-
-  it('calls onUnavailable once when the script loads but window.google is missing', async () => {
-    window.google = undefined;
-    const props = renderIt();
-
-    await waitFor(() => expect(props.onUnavailable).toHaveBeenCalledTimes(1));
     expect(renderButton).not.toHaveBeenCalled();
   });
 

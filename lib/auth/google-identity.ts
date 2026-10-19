@@ -86,7 +86,10 @@ export async function createNonce(): Promise<{ raw: string; hashed: string }> {
 type CredentialHandler = (idToken: string, rawNonce: string) => void;
 
 const handlers: CredentialHandler[] = [];
-let initializing: Promise<void> | null = null;
+/** Google's sign-in API object, as the loaded script exposes it. */
+type GoogleIdApi = NonNullable<Window['google']>['accounts']['id'];
+
+let initializing: Promise<GoogleIdApi> | null = null;
 
 /**
  * Adds a handler for Google's ID tokens and returns a function that removes it.
@@ -101,12 +104,12 @@ export function registerGoogleCredentialHandler(handler: CredentialHandler): () 
 }
 
 /**
- * Loads the Google script and initializes it once per page.
+ * Loads the Google script, initializes it once per page, and returns Google's API.
  * Google keeps one global setup, so every panel shares one nonce.
  * The shared callback hands each token to the latest registered handler.
  * A failed setup clears the cache so a later call retries.
  */
-export function ensureGoogleInitialized(): Promise<void> {
+export function ensureGoogleInitialized(): Promise<GoogleIdApi> {
   if (initializing) return initializing;
 
   initializing = (async () => {
@@ -122,6 +125,7 @@ export function ensureGoogleInitialized(): Promise<void> {
         handlers[handlers.length - 1]?.(credential, nonce.raw);
       },
     });
+    return gis;
   })();
   initializing.catch(() => {
     initializing = null;

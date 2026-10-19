@@ -47,10 +47,8 @@ export default function GoogleSignInButton(props: GoogleSignInButtonProps) {
 
     (async () => {
       try {
-        await ensureGoogleInitialized();
+        const gis = await ensureGoogleInitialized();
         const container = containerRef.current;
-        const gis = window.google?.accounts.id;
-        if (!gis) throw new Error('Google Identity is missing after load');
         if (cancelled || !container) return;
 
         gis.renderButton(container, {

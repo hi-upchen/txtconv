@@ -48,11 +48,11 @@ export default function LoginPanel({
   const [step, setStep] = useState<Step>('choose');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [isBusy, setIsBusy] = useState(false);
+  // Which sign-in is running, if any. Only one may run at a time.
+  const [pending, setPending] = useState<'email' | 'google' | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [cooldown, setCooldown] = useState(0);
   const [isGoogleAvailable, setIsGoogleAvailable] = useState(true);
-  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const emailId = useId();
   const codeId = useId();
   const codeInputRef = useRef<HTMLInputElement>(null);
@@ -87,8 +87,8 @@ export default function LoginPanel({
 
   const handleGoogleCredential = async (idToken: string, rawNonce: string) => {
     // Ignore a token while another sign-in is running.
-    if (isBusy || isGoogleSigningIn) return;
-    setIsGoogleSigningIn(true);
+    if (pending) return;
+    setPending('google');
     setErrorMessage('');
 
     let errorCode: string | null = null;
@@ -106,7 +106,7 @@ export default function LoginPanel({
     if (errorCode) {
       trackLoginFailed('google', errorCode);
       setErrorMessage('Google 登入失敗，請改用下方 Email 驗證碼登入。');
-      setIsGoogleSigningIn(false);
+      setPending(null);
       return;
     }
 
@@ -119,7 +119,7 @@ export default function LoginPanel({
 
   /** Sends a code to the entered email. isResend skips the login_started event. */
   const sendCode = async (isResend: boolean) => {
-    setIsBusy(true);
+    setPending('email');
     setErrorMessage('');
     rememberReturnTo();
     if (!isResend) trackLoginStarted('email_code', window.location.pathname);
@@ -140,7 +140,7 @@ export default function LoginPanel({
       setStep('code');
       setCooldown(RESEND_COOLDOWN_SECONDS);
     }
-    setIsBusy(false);
+    setPending(null);
   };
 
   const handleSendCode = async (e: React.FormEvent) => {
@@ -155,7 +155,7 @@ export default function LoginPanel({
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsBusy(true);
+    setPending('email');
     setErrorMessage('');
 
     const { error } = await supabase.auth.verifyOtp({
@@ -167,7 +167,7 @@ export default function LoginPanel({
     if (error) {
       trackLoginFailed('email_code', error.code ?? 'otp_verify_error');
       setErrorMessage('驗證碼錯誤或已過期，請重新輸入或重寄驗證碼。');
-      setIsBusy(false);
+      setPending(null);
       return;
     }
 
@@ -187,7 +187,7 @@ export default function LoginPanel({
   const inputClass =
     'w-full px-4 py-2.5 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors';
   const primaryButtonClass = `w-full py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors ${
-    isBusy || isGoogleSigningIn ? 'opacity-70 cursor-not-allowed' : ''
+    pending ? 'opacity-70 cursor-not-allowed' : ''
   }`;
 
   const errorAlert = errorMessage && (
@@ -221,15 +221,15 @@ export default function LoginPanel({
             required
           />
           {errorAlert}
-          <button className={primaryButtonClass} type="submit" disabled={isBusy || isGoogleSigningIn || code.length !== CODE_LENGTH}>
-            {isBusy ? '驗證中...' : '確認'}
+          <button className={primaryButtonClass} type="submit" disabled={pending !== null || code.length !== CODE_LENGTH}>
+            {pending === 'email' ? '驗證中...' : '確認'}
           </button>
         </form>
         <div className="flex items-center justify-between mt-4 text-sm">
           <button
             type="button"
             onClick={handleResend}
-            disabled={isBusy || isGoogleSigningIn || cooldown > 0}
+            disabled={pending !== null || cooldown > 0}
             className="text-gray-500 hover:text-primary transition-colors disabled:text-gray-300 disabled:cursor-not-allowed"
           >
             {cooldown > 0 ? `${cooldown} 秒後可重寄` : '重寄驗證碼'}
@@ -264,7 +264,7 @@ export default function LoginPanel({
             onCredential={handleGoogleCredential}
             onUnavailable={() => setIsGoogleAvailable(false)}
           />
-          {isGoogleSigningIn && (
+          {pending === 'google' && (
             <p className="text-sm text-gray-500 text-center mt-2" role="status">Google 登入中…</p>
           )}
 
@@ -289,8 +289,8 @@ export default function LoginPanel({
           required
         />
         {errorAlert}
-        <button className={primaryButtonClass} type="submit" disabled={isBusy || isGoogleSigningIn}>
-          {isBusy ? '傳送中...' : '寄送驗證碼'}
+        <button className={primaryButtonClass} type="submit" disabled={pending !== null}>
+          {pending === 'email' ? '傳送中...' : '寄送驗證碼'}
         </button>
       </form>
       <p className="text-xs text-gray-400 text-center mt-4">無須密碼，驗證碼 1 小時內有效</p>
