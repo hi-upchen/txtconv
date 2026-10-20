@@ -92,9 +92,13 @@ test('dictionary upsell for a free user links to /checkout in the same tab', asy
 
   await page.goto('/');
   // Six lines pass the free limit of five pairs, which shows the upsell.
-  await page.getByPlaceholder(/代码,程式碼/).fill('a1,b1\na2,b2\na3,b3\na4,b4\na5,b5\na6,b6');
+  // A fill made before React hydrates the page is lost, because the change
+  // handler is not attached yet. Fill again until the upsell appears.
   const upsell = page.getByRole('link', { name: '升級 Pro', exact: true });
-  await expect(upsell).toBeVisible();
+  await expect(async () => {
+    await page.getByPlaceholder(/代码,程式碼/).fill('a1,b1\na2,b2\na3,b3\na4,b4\na5,b5\na6,b6');
+    await expect(upsell).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 30_000 });
   await expect(upsell).toHaveAttribute('href', '/checkout');
   await expect(upsell).not.toHaveAttribute('target');
 });

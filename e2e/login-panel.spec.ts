@@ -112,10 +112,12 @@ test('a login_just_succeeded cookie from a server redirect reports login_succeed
   ]);
 
   await page.goto('/');
+  // The dataLayer array does not exist until the page scripts create it,
+  // so the check must tolerate it being missing on the first polls.
   await page.waitForFunction(() =>
-    (window as unknown as { dataLayer: Array<Record<string, unknown>> }).dataLayer.some(
+    (window as unknown as { dataLayer?: Array<Record<string, unknown>> }).dataLayer?.some(
       (e) => e.event === 'login_succeeded'
-    )
+    ) ?? false
   );
 
   const succeeded = (await readDataLayer(page)).filter((e) => e.event === 'login_succeeded');
