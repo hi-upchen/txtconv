@@ -6,6 +6,8 @@
  * Q&A pairs are emitted as FAQPage JSON-LD structured data.
  */
 
+import { PRO_PRICE_LABEL } from '@/lib/payment/price';
+
 interface FaqItem {
   question: string;
   answer: string;
@@ -41,7 +43,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: '支援哪些檔案格式與大小？',
     answer:
-      '支援 .txt 純文字（小說、文件）、.srt 影片字幕、.csv 資料表、.xml 資料檔。免費版單檔上限 5MB；升級 Pro（終身授權 NT$899）後單檔上限 100MB，並可使用最多 10,000 組自訂字典對照。',
+      `支援 .txt 純文字（小說、文件）、.srt 影片字幕、.csv 資料表、.xml 資料檔。免費版單檔上限 5MB；升級 Pro（終身授權 ${PRO_PRICE_LABEL}）後單檔上限 100MB，並可使用最多 10,000 組自訂字典對照。`,
   },
   {
     question: '自訂字典是什麼？什麼情況會用到？',

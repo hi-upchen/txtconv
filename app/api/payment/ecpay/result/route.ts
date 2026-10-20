@@ -13,41 +13,11 @@
 
 import { NextResponse } from 'next/server';
 import { getBaseUrl } from '@/lib/url';
-import { verifyCallback, type EcpayParams } from '@/lib/payment/ecpay';
+import { readEcpayForm, verifyCallbackSafely } from '@/lib/payment/ecpay';
 import { MERCHANT_TRADE_NO_REGEX, getEcpayConfig } from '@/lib/payment/config';
 
 /** The result route is a dynamic POST handler and must never be cached. */
 export const dynamic = 'force-dynamic';
-
-/**
- * Reads the posted form into a flat map of strings.
- *
- * A repeated key keeps its first value. A file field becomes an empty string.
- * It throws when the body is not form data at all.
- */
-async function readFormBody(request: Request): Promise<EcpayParams> {
-  const form = await request.formData();
-  const body: EcpayParams = {};
-  form.forEach((value, key) => {
-    if (Object.prototype.hasOwnProperty.call(body, key)) return;
-    body[key] = typeof value === 'string' ? value : '';
-  });
-  return body;
-}
-
-/**
- * Checks the signature without ever throwing.
- *
- * The encoder throws on some broken text, such as a lone surrogate.
- * A throw here counts as a bad signature.
- */
-function signatureIsValid(body: EcpayParams, hashKey: string, hashIV: string): boolean {
-  try {
-    return verifyCallback(body, hashKey, hashIV);
-  } catch {
-    return false;
-  }
-}
 
 /** Sends the browser to the completion page for the order ECPay reported. */
 export async function POST(request: Request): Promise<NextResponse> {
@@ -55,12 +25,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   const errorUrl = `${baseUrl}/checkout/complete?error=1`;
 
   try {
-    const body = await readFormBody(request);
+    const body = await readEcpayForm(request);
     const config = getEcpayConfig();
     const merchantTradeNo = body.MerchantTradeNo ?? '';
 
     const verified =
-      signatureIsValid(body, config.hashKey, config.hashIV) &&
+      verifyCallbackSafely(body, config.hashKey, config.hashIV) &&
       MERCHANT_TRADE_NO_REGEX.test(merchantTradeNo);
 
     if (!verified) {

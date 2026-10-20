@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 // __tests__/lib/payment/ecpay.test.ts
 /**
  * ECPay CheckMacValue conformance tests.
@@ -11,7 +14,9 @@ import {
   buildCheckMacValue,
   buildPreHashString,
   buildCheckoutParams,
+  readEcpayForm,
   verifyCallback,
+  verifyCallbackSafely,
 } from '@/lib/payment/ecpay';
 
 // The exact HashKey/HashIV and parameters from ECPay's official CheckMacValue
@@ -154,5 +159,66 @@ describe('verifyCallback', () => {
   it('rejects a payload signed with the wrong key', () => {
     const body = signedCallback();
     expect(verifyCallback(body, 'wrongkeywrongkey', SANDBOX_IV)).toBe(false);
+  });
+});
+
+describe('verifyCallbackSafely', () => {
+  const body: Record<string, string> = { MerchantTradeNo: 'TCabc123def456ghi789', RtnCode: '1' };
+  body.CheckMacValue = buildCheckMacValue(body, SANDBOX_KEY, SANDBOX_IV);
+
+  it('accepts a correctly signed payload', () => {
+    expect(verifyCallbackSafely(body, SANDBOX_KEY, SANDBOX_IV)).toBe(true);
+  });
+
+  it('rejects a payload signed with the wrong key', () => {
+    expect(verifyCallbackSafely(body, 'wrongkeywrongkey', SANDBOX_IV)).toBe(false);
+  });
+
+  it('returns false where the plain check throws', () => {
+    // A lone surrogate makes the URL encoder throw.
+    const broken = { ...body, RtnMsg: '\ud800' };
+    expect(() => verifyCallback(broken, SANDBOX_KEY, SANDBOX_IV)).toThrow();
+    expect(verifyCallbackSafely(broken, SANDBOX_KEY, SANDBOX_IV)).toBe(false);
+  });
+});
+
+describe('readEcpayForm', () => {
+  function formRequest(form: FormData): Request {
+    return new Request('https://example.test/callback', { method: 'POST', body: form });
+  }
+
+  it('reads a URL-encoded body into a flat map of strings', async () => {
+    const request = new Request('https://example.test/callback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'RtnCode=1&RtnMsg=%E4%BA%A4%E6%98%93%E6%88%90%E5%8A%9F&TradeAmt=899',
+    });
+    expect(await readEcpayForm(request)).toEqual({
+      RtnCode: '1',
+      RtnMsg: '交易成功',
+      TradeAmt: '899',
+    });
+  });
+
+  it('keeps the first value of a repeated key', async () => {
+    const form = new FormData();
+    form.append('RtnCode', '1');
+    form.append('RtnCode', '0');
+    expect(await readEcpayForm(formRequest(form))).toEqual({ RtnCode: '1' });
+  });
+
+  it('turns a file field into an empty string', async () => {
+    const form = new FormData();
+    form.append('upload', new Blob(['data']), 'a.txt');
+    expect(await readEcpayForm(formRequest(form))).toEqual({ upload: '' });
+  });
+
+  it('throws when the body is not form data', async () => {
+    const request = new Request('https://example.test/callback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    await expect(readEcpayForm(request)).rejects.toThrow();
   });
 });

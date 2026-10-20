@@ -4,9 +4,10 @@ import { redirect } from 'next/navigation';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import LoginPanel from '@/components/LoginPanel';
+import ProBenefits from '@/components/ProBenefits';
 import { getAuthUser, getProfile, ensureProfileLinked } from '@/lib/actions/auth';
 import { isPaidUser } from '@/lib/auth';
-import { PRO_LIFETIME_PRICE_TWD } from '@/lib/payment/config';
+import { PRO_LIFETIME_PRICE_TWD, PRO_PRICE_LABEL, REFUND_NOTE } from '@/lib/payment/price';
 
 /**
  * Checkout page for the Pro lifetime licence.
@@ -26,8 +27,6 @@ export const metadata: Metadata = {
 
 /** The page reads the session cookie. Never prerender it. */
 export const dynamic = 'force-dynamic';
-
-const PRICE_LABEL = `NT$${PRO_LIFETIME_PRICE_TWD}`;
 
 export default async function CheckoutPage() {
   const user = await getAuthUser();
@@ -69,23 +68,14 @@ export default async function CheckoutPage() {
                 <p className="text-xl font-bold text-gray-900">Pro 終身版</p>
                 <p className="text-sm text-gray-500">一次付費，永久使用</p>
               </div>
-              <p className="text-4xl font-bold text-primary">{PRICE_LABEL}</p>
+              <p className="text-4xl font-bold text-primary">{PRO_PRICE_LABEL}</p>
             </div>
 
-            <ul className="text-sm text-gray-600 space-y-2">
-              <li className="flex items-start gap-2">
-                <span className="text-gray-900 mt-0.5">•</span>
-                單檔最大 100MB（免費版 5MB）
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-gray-900 mt-0.5">•</span>
-                自訂字典 10,000 組，固定人名與專有名詞譯法
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-gray-900 mt-0.5">•</span>
-                包含所有未來新功能
-              </li>
-            </ul>
+            <ProBenefits
+              className="text-sm text-gray-600 space-y-2"
+              dictionaryWording="explained"
+              extraItems={['包含所有未來新功能']}
+            />
 
             <dl className="text-sm text-gray-600 border-t border-amber-100 pt-4 space-y-1">
               <div className="flex gap-2">
@@ -94,7 +84,7 @@ export default async function CheckoutPage() {
               </div>
               <div className="flex gap-2">
                 <dt className="shrink-0">退款：</dt>
-                <dd>購買後 14 天內不滿意可退款</dd>
+                <dd>{REFUND_NOTE}</dd>
               </div>
             </dl>
 

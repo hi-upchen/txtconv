@@ -18,6 +18,9 @@ export function getDictPairLimit(licenseType: LicenseType): number {
   return 10000;
 }
 
+/** The Pro dictionary limit as the pricing copy shows it, for example "10,000". */
+export const PRO_DICT_PAIR_LIMIT_LABEL = getDictPairLimit('lifetime').toLocaleString('en-US');
+
 /**
  * Parses CSV text into DictPair[]. One pair per line, comma-separated.
  * Skips blank lines. Only returns pairs from valid lines

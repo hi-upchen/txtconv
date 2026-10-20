@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getAuthUser, getProfile } from '@/lib/actions/auth';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 /**
  * Privacy policy page. It lists what data the service collects.
@@ -69,8 +70,8 @@ export default async function PrivacyPage() {
           <h2 className="text-xl font-bold text-gray-800">資料刪除</h2>
           <p className="text-sm leading-relaxed">
             你可以隨時來信{' '}
-            <a href="mailto:hi.upchen@gmail.com" className="text-primary hover:underline">
-              hi.upchen@gmail.com
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary hover:underline">
+              {SUPPORT_EMAIL}
             </a>{' '}
             要求刪除你的帳號或自訂字典資料，我們會在 30 天內處理完成。
             依會計需要，付款訂單紀錄（見上方「付款資料」）在刪除帳號後仍會保留。
@@ -81,8 +82,8 @@ export default async function PrivacyPage() {
           <h2 className="text-xl font-bold text-gray-800">聯絡方式</h2>
           <p className="text-sm leading-relaxed">
             對本政策有任何疑問，歡迎來信{' '}
-            <a href="mailto:hi.upchen@gmail.com" className="text-primary hover:underline">
-              hi.upchen@gmail.com
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary hover:underline">
+              {SUPPORT_EMAIL}
             </a>
             。
           </p>

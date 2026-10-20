@@ -20,21 +20,13 @@ describe('PaywallDialog', () => {
     );
   }
 
-  it('links the buy button to /checkout in the same tab by default', () => {
+  it('links the buy button to /checkout in the same tab', () => {
     renderOpen();
     const buy = screen.getByRole('link', { name: /升級 Pro 終身版 NT\$899/ });
     expect(buy).toHaveAttribute('href', '/checkout');
     expect(buy).not.toHaveAttribute('target');
     // Focus still moves to the buy button when the dialog opens.
     expect(buy).toHaveFocus();
-  });
-
-  it('honours a custom checkoutHref', () => {
-    renderOpen({ checkoutHref: '/checkout?from=test' });
-    expect(screen.getByRole('link', { name: /升級 Pro 終身版 NT\$899/ })).toHaveAttribute(
-      'href',
-      '/checkout?from=test',
-    );
   });
 
   it('shows the NT$899 benefit line and the 14-day refund promise', () => {

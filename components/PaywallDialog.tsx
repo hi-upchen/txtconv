@@ -3,7 +3,13 @@
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { trackBeginCheckout, trackUpgradeCtaClicked } from '@/lib/analytics';
-import { PRO_LIFETIME_PRICE_TWD } from '@/lib/payment/price';
+import {
+  CHECKOUT_PATH,
+  PRO_LIFETIME_PRICE_TWD,
+  PRO_PRICE_LABEL,
+  REFUND_NOTE,
+} from '@/lib/payment/price';
+import ProBenefits from './ProBenefits';
 
 export interface PaywallDialogProps {
   /** Whether the dialog is currently shown. */
@@ -14,8 +20,6 @@ export interface PaywallDialogProps {
   fileName: string;
   /** File size in megabytes, already formatted to two decimals (e.g. "8.42"). */
   fileSizeMB: string;
-  /** Destination of the buy button. Defaults to our own checkout page. */
-  checkoutHref?: string;
 }
 
 /**
@@ -34,10 +38,8 @@ export default function PaywallDialog({
   onClose,
   fileName,
   fileSizeMB,
-  checkoutHref = '/checkout',
 }: PaywallDialogProps) {
   const primaryButtonRef = useRef<HTMLAnchorElement>(null);
-  const priceLabel = `NT$${PRO_LIFETIME_PRICE_TWD}`;
 
   // Move keyboard focus onto the buy button as soon as the dialog appears so
   // keyboard and screen-reader users land inside the dialog rather than
@@ -108,32 +110,23 @@ export default function PaywallDialog({
           「{fileName}」大小為 {fileSizeMB}MB。升級 Pro 終身版即可轉換最大 100MB 的檔案。
         </p>
 
-        <ul className="text-left w-full space-y-3 mb-8 text-gray-600 text-sm">
-          <li className="flex items-start gap-2">
-            <span className="text-gray-900 mt-0.5">•</span>
-            單檔最大 100MB（免費版 5MB）
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-gray-900 mt-0.5">•</span>
-            自訂字典 10,000 組，固定人名與專有名詞譯法
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-gray-900 mt-0.5">•</span>
-            一次付費 {priceLabel}，永久使用，包含所有未來新功能
-          </li>
-        </ul>
+        <ProBenefits
+          className="text-left w-full space-y-3 mb-8 text-gray-600 text-sm"
+          dictionaryWording="explained"
+          extraItems={[`一次付費 ${PRO_PRICE_LABEL}，永久使用，包含所有未來新功能`]}
+        />
 
         {/* Same-tab link to our checkout page. Checkout needs this tab's login session. */}
         <Link
           ref={primaryButtonRef}
-          href={checkoutHref}
+          href={CHECKOUT_PATH}
           onClick={() => trackBeginCheckout(PRO_LIFETIME_PRICE_TWD, 'lifetime')}
           className="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
         >
-          升級 Pro 終身版 {priceLabel} →
+          升級 Pro 終身版 {PRO_PRICE_LABEL} →
         </Link>
 
-        <p className="mt-3 text-xs text-gray-500 text-center">購買後 14 天內不滿意可退款</p>
+        <p className="mt-3 text-xs text-gray-500 text-center">{REFUND_NOTE}</p>
 
         <div className="mt-4 flex flex-col items-center gap-3">
           {/*

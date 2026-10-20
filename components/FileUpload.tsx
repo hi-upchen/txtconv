@@ -578,7 +578,6 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
         onClose={closePaywallDialog}
         fileName={paywallFile.name}
         fileSizeMB={paywallFile.sizeMB}
-        checkoutHref="/checkout"
       />
     </div>
   );

@@ -178,3 +178,47 @@ export function verifyCallback(
   const expected = buildCheckMacValue(rest, hashKey, hashIV);
   return expected === received.toUpperCase();
 }
+
+/**
+ * Reads a form that ECPay posted into a flat map of strings.
+ *
+ * The signature code expects one string per key.
+ * A repeated key keeps its first value. A file field becomes an empty string.
+ * Such a body then fails the signature check instead of crashing it.
+ * It throws when the body is not form data at all.
+ *
+ * @param request - The incoming POST request.
+ * @returns The posted fields.
+ */
+export async function readEcpayForm(request: Request): Promise<EcpayParams> {
+  const form = await request.formData();
+  const body: EcpayParams = {};
+  form.forEach((value, key) => {
+    if (Object.prototype.hasOwnProperty.call(body, key)) return;
+    body[key] = typeof value === 'string' ? value : '';
+  });
+  return body;
+}
+
+/**
+ * Checks the signature on a posted payload without ever throwing.
+ *
+ * The encoder throws on some broken text, such as a lone surrogate.
+ * A throw here counts as a bad signature.
+ *
+ * @param body - The parsed form fields.
+ * @param hashKey - Merchant HashKey.
+ * @param hashIV - Merchant HashIV.
+ * @returns True only when the signature matches.
+ */
+export function verifyCallbackSafely(
+  body: EcpayParams,
+  hashKey: string,
+  hashIV: string,
+): boolean {
+  try {
+    return verifyCallback(body, hashKey, hashIV);
+  } catch {
+    return false;
+  }
+}

@@ -10,6 +10,17 @@ import type { LicenseType } from '@/types/user';
 export const FREE_MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export const PRO_MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
+/** Formats a whole number of megabytes in bytes as text, for example "5MB". */
+export function formatMegabytes(bytes: number): string {
+  return `${bytes / 1024 / 1024}MB`;
+}
+
+/** The free size limit as the pricing copy shows it. */
+export const FREE_MAX_FILE_SIZE_LABEL = formatMegabytes(FREE_MAX_FILE_SIZE);
+
+/** The Pro size limit as the pricing copy shows it. */
+export const PRO_MAX_FILE_SIZE_LABEL = formatMegabytes(PRO_MAX_FILE_SIZE);
+
 /**
  * Returns the maximum allowed file size in bytes for a license tier.
  *

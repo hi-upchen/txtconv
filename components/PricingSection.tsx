@@ -2,12 +2,16 @@
 
 import Link from 'next/link';
 import { trackBeginCheckout } from '@/lib/analytics';
-import { PRO_LIFETIME_PRICE_TWD } from '@/lib/payment/price';
+import {
+  CHECKOUT_PATH,
+  PRO_LIFETIME_PRICE_TWD,
+  PRO_PRICE_LABEL,
+  REFUND_NOTE,
+} from '@/lib/payment/price';
 import type { LicenseType } from '@/types/user';
+import ProBenefits from './ProBenefits';
 
 interface PricingSectionProps {
-  /** Our own checkout page. Defaults to /checkout. */
-  checkoutHref?: string;
   licenseType?: LicenseType;
 }
 
@@ -17,10 +21,7 @@ interface PricingSectionProps {
  * Lifetime is the only paid plan. So its card lists concrete benefits
  * instead of pointing at another plan.
  */
-export default function PricingSection({
-  checkoutHref = '/checkout',
-  licenseType = 'free',
-}: PricingSectionProps) {
+export default function PricingSection({ licenseType = 'free' }: PricingSectionProps) {
   const isCurrent = (tier: LicenseType) => licenseType === tier;
 
   return (
@@ -65,45 +66,28 @@ export default function PricingSection({
             <p className="text-gray-500">終身授權</p>
           </div>
           <div className="flex items-baseline gap-2 mb-8">
-            <span className="text-5xl font-bold text-primary">{`NT$${PRO_LIFETIME_PRICE_TWD}`}</span>
+            <span className="text-5xl font-bold text-primary">{PRO_PRICE_LABEL}</span>
             <span className="text-base font-normal text-gray-500">一次付費</span>
           </div>
-          <ul className="text-left w-full space-y-4 mb-10 text-gray-600 text-sm">
-            <li className="flex items-start gap-2">
-              <span className="text-gray-900 mt-0.5">•</span>
-              單檔最大 100MB（免費版 5MB）
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-900 mt-0.5">•</span>
-              自訂字典對照 10,000 組
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-900 mt-0.5">•</span>
-              一次付費，永久使用
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-900 mt-0.5">•</span>
-              所有未來新功能
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-gray-900 mt-0.5">•</span>
-              優先客戶支援
-            </li>
-          </ul>
+          <ProBenefits
+            className="text-left w-full space-y-4 mb-10 text-gray-600 text-sm"
+            dictionaryWording="compact"
+            extraItems={['一次付費，永久使用', '所有未來新功能', '優先客戶支援']}
+          />
           {isCurrent('lifetime') ? (
             <button className="w-full py-3 px-4 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed" disabled>
               目前方案
             </button>
           ) : (
             <Link
-              href={checkoutHref}
+              href={CHECKOUT_PATH}
               onClick={() => trackBeginCheckout(PRO_LIFETIME_PRICE_TWD, 'lifetime')}
               className="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               立即購買 →
             </Link>
           )}
-          <p className="mt-3 text-xs text-gray-500">購買後 14 天內不滿意可退款</p>
+          <p className="mt-3 text-xs text-gray-500">{REFUND_NOTE}</p>
         </div>
       </div>
     </section>

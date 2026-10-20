@@ -5,7 +5,7 @@ const mockFindOrderByTradeNo = jest.fn();
 const mockMarkOrderPaid = jest.fn();
 const mockGrantLifetime = jest.fn();
 const mockFindOtherPaidOrder = jest.fn();
-const mockVerifyCallback = jest.fn();
+const mockVerifyCallbackSafely = jest.fn();
 
 jest.mock('@/lib/payment/orders', () => ({
   findOrderByTradeNo: (...args: unknown[]) => mockFindOrderByTradeNo(...args),
@@ -14,12 +14,12 @@ jest.mock('@/lib/payment/orders', () => ({
   findOtherPaidOrder: (...args: unknown[]) => mockFindOtherPaidOrder(...args),
 }));
 
-// The real verifier runs by default. Single tests swap in a throwing one.
+// The real signature check runs by default. Single tests inspect or replace it.
 jest.mock('@/lib/payment/ecpay', () => {
   const actual = jest.requireActual('@/lib/payment/ecpay');
   return {
     ...actual,
-    verifyCallback: (...args: unknown[]) => mockVerifyCallback(...args),
+    verifyCallbackSafely: (...args: unknown[]) => mockVerifyCallbackSafely(...args),
   };
 });
 
@@ -27,7 +27,7 @@ import { POST } from '@/app/api/payment/ecpay/callback/route';
 import { buildCheckMacValue } from '@/lib/payment/ecpay';
 import { ECPAY_SANDBOX_CREDENTIALS } from '@/lib/payment/config';
 
-const actualVerifyCallback = jest.requireActual('@/lib/payment/ecpay').verifyCallback;
+const actualVerifyCallbackSafely = jest.requireActual('@/lib/payment/ecpay').verifyCallbackSafely;
 
 const ORDER = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -101,7 +101,7 @@ describe('POST /api/payment/ecpay/callback', () => {
     delete process.env.ECPAY_HASH_IV;
     // Most tests exercise the grant path, so the local sandbox opt-in is on.
     process.env.ECPAY_SANDBOX_GRANT = 'true';
-    mockVerifyCallback.mockReset().mockImplementation(actualVerifyCallback);
+    mockVerifyCallbackSafely.mockReset().mockImplementation(actualVerifyCallbackSafely);
     mockFindOrderByTradeNo.mockReset().mockResolvedValue(ORDER);
     mockMarkOrderPaid.mockReset().mockResolvedValue('paid_now');
     mockGrantLifetime.mockReset().mockResolvedValue(true);
@@ -138,10 +138,9 @@ describe('POST /api/payment/ecpay/callback', () => {
     expect(mockFindOrderByTradeNo).not.toHaveBeenCalled();
   });
 
-  it('turns a verifier that throws into a signature failure, not a 500', async () => {
-    mockVerifyCallback.mockImplementation(() => {
-      throw new URIError('URI malformed');
-    });
+  // The shared helper's own tests prove that a throwing encoder yields false.
+  it('turns a failed safe signature check into a signature failure, not a 500', async () => {
+    mockVerifyCallbackSafely.mockReturnValue(false);
     expect(await post(signedBody())).toBe('0|CheckMacValue verify failed');
     expect(mockFindOrderByTradeNo).not.toHaveBeenCalled();
     expect(mockMarkOrderPaid).not.toHaveBeenCalled();
@@ -155,7 +154,7 @@ describe('POST /api/payment/ecpay/callback', () => {
   it('hands the verifier a flat string map and keeps the first value of a repeated key', async () => {
     const formBody = `${new URLSearchParams(signedBody()).toString()}&TradeAmt=1&RtnCode=0`;
     expect(await postRaw(formBody)).toBe('1|OK');
-    const passed = mockVerifyCallback.mock.calls[0][0] as Record<string, unknown>;
+    const passed = mockVerifyCallbackSafely.mock.calls[0][0] as Record<string, unknown>;
     expect(passed.TradeAmt).toBe('899');
     expect(passed.RtnCode).toBe('1');
     for (const value of Object.values(passed)) expect(typeof value).toBe('string');
@@ -170,7 +169,7 @@ describe('POST /api/payment/ecpay/callback', () => {
     );
     expect(res.status).toBe(200);
     expect(await res.text()).toBe('0|CheckMacValue verify failed');
-    const passed = mockVerifyCallback.mock.calls[0][0] as Record<string, unknown>;
+    const passed = mockVerifyCallbackSafely.mock.calls[0][0] as Record<string, unknown>;
     expect(passed.RtnMsg).toBe('');
   });
 

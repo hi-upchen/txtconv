@@ -30,8 +30,8 @@ import { createPendingOrder } from '@/lib/payment/orders';
 /** This route reads the session and writes an order. Never prerender it. */
 export const dynamic = 'force-dynamic';
 
-/** Escapes a value for use inside a double-quoted HTML attribute. */
-function escapeHtmlAttr(value: string): string {
+/** Escapes a value for HTML text or a double-quoted HTML attribute. */
+function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -39,25 +39,38 @@ function escapeHtmlAttr(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Wraps a short Traditional Chinese message in a minimal HTML page. */
-function messagePage(title: string, body: string, status: number): NextResponse {
+/**
+ * Wraps body markup in a minimal HTML page response.
+ *
+ * The title is escaped here. The body markup must already be safe HTML.
+ */
+function htmlPage(title: string, bodyHtml: string, status: number): NextResponse {
   const html = `<!DOCTYPE html>
 <html lang="zh-Hant">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtmlAttr(title)}</title>
+    <title>${escapeHtml(title)}</title>
   </head>
   <body style="font-family: system-ui, sans-serif; text-align: center; padding: 3rem 1rem; color: #334155;">
-    <h1 style="font-size: 1.25rem;">${escapeHtmlAttr(title)}</h1>
-    <p>${escapeHtmlAttr(body)}</p>
-    <p><a href="/checkout">回到結帳頁</a></p>
+    ${bodyHtml}
   </body>
 </html>`;
   return new NextResponse(html, {
     status,
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
+}
+
+/** Wraps a short Traditional Chinese message in a minimal HTML page. */
+function messagePage(title: string, body: string, status: number): NextResponse {
+  return htmlPage(
+    title,
+    `<h1 style="font-size: 1.25rem;">${escapeHtml(title)}</h1>
+    <p>${escapeHtml(body)}</p>
+    <p><a href="/checkout">回到結帳頁</a></p>`,
+    status,
+  );
 }
 
 /** Starts one ECPay checkout for the logged-in user. */
@@ -116,7 +129,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const fields = Object.entries(params)
     .map(
       ([k, v]) =>
-        `<input type="hidden" name="${escapeHtmlAttr(k)}" value="${escapeHtmlAttr(v)}" />`,
+        `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}" />`,
     )
     .join('\n      ');
 
@@ -125,16 +138,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   // A restored page does not run the submit script again.
   // So the button and the link stay visible, and the pageshow handler
   // sends a restored page back to /checkout for a fresh order.
-  const html = `<!DOCTYPE html>
-<html lang="zh-Hant">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>前往付款…</title>
-  </head>
-  <body style="font-family: system-ui, sans-serif; text-align: center; padding: 3rem 1rem; color: #334155;">
-    <p>正在前往綠界安全付款頁面，請稍候…</p>
-    <form id="ecpay-form" method="POST" action="${escapeHtmlAttr(config.checkoutUrl)}" accept-charset="UTF-8">
+  return htmlPage(
+    '前往付款…',
+    `<p>正在前往綠界安全付款頁面，請稍候…</p>
+    <form id="ecpay-form" method="POST" action="${escapeHtml(config.checkoutUrl)}" accept-charset="UTF-8">
       ${fields}
       <p>若未自動跳轉，請點下方按鈕。</p>
       <button type="submit">前往綠界付款</button>
@@ -143,12 +150,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     <script>
       window.addEventListener('pageshow', (e) => { if (e.persisted) location.replace('/checkout') });
       document.getElementById('ecpay-form').submit();
-    </script>
-  </body>
-</html>`;
-
-  return new NextResponse(html, {
-    status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
-  });
+    </script>`,
+    200,
+  );
 }

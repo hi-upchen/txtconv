@@ -19,7 +19,7 @@
  * A late callback for a refunded order answers `1|OK` and grants nothing.
  */
 
-import { verifyCallback, type EcpayParams } from '@/lib/payment/ecpay';
+import { readEcpayForm, verifyCallbackSafely } from '@/lib/payment/ecpay';
 import {
   getEcpayConfig,
   isSandboxGrantAllowed,
@@ -44,48 +44,27 @@ function ecpayResponse(body: string): Response {
 }
 
 /**
- * Reads the posted form into a flat map of strings.
+ * Answers `1|OK` for a callback that must grant nothing.
  *
- * The signature code expects one string per key.
- * A repeated key keeps its first value. A file field becomes an empty string.
- * Such a body then fails the signature check instead of crashing it.
- * It throws when the body is not form data at all.
+ * ECPay stops retrying once it sees `1|OK`.
+ * The warning tells the owner why this payment granted no licence.
  */
-async function readFormBody(request: Request): Promise<EcpayParams> {
-  const form = await request.formData();
-  const body: EcpayParams = {};
-  form.forEach((value, key) => {
-    if (Object.prototype.hasOwnProperty.call(body, key)) return;
-    body[key] = typeof value === 'string' ? value : '';
-  });
-  return body;
-}
-
-/**
- * Checks the signature without ever throwing.
- *
- * The encoder throws on some broken text, such as a lone surrogate.
- * A throw here counts as a bad signature.
- */
-function signatureIsValid(body: EcpayParams, hashKey: string, hashIV: string): boolean {
-  try {
-    return verifyCallback(body, hashKey, hashIV);
-  } catch {
-    return false;
-  }
+function acknowledgeWithoutGranting(reason: string, merchantTradeNo: string): Response {
+  console.warn(`ecpay/callback: ${reason}, acknowledged without granting`, { merchantTradeNo });
+  return ecpayResponse('1|OK');
 }
 
 /** Verifies one ECPay callback and grants lifetime when every check passes. */
 export async function POST(request: Request): Promise<Response> {
   let merchantTradeNo = '';
   try {
-    const body = await readFormBody(request);
+    const body = await readEcpayForm(request);
     merchantTradeNo = body.MerchantTradeNo ?? '';
 
     const config = getEcpayConfig();
 
     // 1. The signature proves the payload came from ECPay unchanged.
-    if (!signatureIsValid(body, config.hashKey, config.hashIV)) {
+    if (!verifyCallbackSafely(body, config.hashKey, config.hashIV)) {
       console.warn('ecpay/callback: CheckMacValue verification failed', { merchantTradeNo });
       return ecpayResponse('0|CheckMacValue verify failed');
     }
@@ -124,28 +103,20 @@ export async function POST(request: Request): Promise<Response> {
     // 5. A simulated payment comes from ECPay's backend and moves no money.
     //    Acknowledge it so ECPay stops retrying, but grant nothing.
     if (body.SimulatePaid === '1') {
-      console.warn('ecpay/callback: SimulatePaid=1, acknowledged without granting', { merchantTradeNo });
-      return ecpayResponse('1|OK');
+      return acknowledgeWithoutGranting('SimulatePaid=1', merchantTradeNo);
     }
 
     // 6. The test store keys are public, and test runs share the real database.
     //    So a test-store callback grants nothing unless the local opt-in is set.
     //    The answer is 1|OK so ECPay does not retry.
     if (!isSandboxGrantAllowed()) {
-      console.warn(
-        'ecpay/callback: test store without ECPAY_SANDBOX_GRANT, acknowledged without granting',
-        { merchantTradeNo },
-      );
-      return ecpayResponse('1|OK');
+      return acknowledgeWithoutGranting('test store without ECPAY_SANDBOX_GRANT', merchantTradeNo);
     }
 
     // 7. A refunded order stays refunded. A late callback must not grant again.
     //    The answer is 1|OK so ECPay does not retry.
     if (order.status === 'refunded') {
-      console.warn('ecpay/callback: order already refunded, acknowledged without granting', {
-        merchantTradeNo,
-      });
-      return ecpayResponse('1|OK');
+      return acknowledgeWithoutGranting('order already refunded', merchantTradeNo);
     }
 
     // 8. Mark the order paid in one atomic step, then grant.
@@ -168,10 +139,7 @@ export async function POST(request: Request): Promise<Response> {
 
     // The owner can refund the order between our lookup and the update.
     if (result === 'refunded') {
-      console.warn('ecpay/callback: order already refunded, acknowledged without granting', {
-        merchantTradeNo,
-      });
-      return ecpayResponse('1|OK');
+      return acknowledgeWithoutGranting('order already refunded', merchantTradeNo);
     }
 
     // 9. A buyer can pay twice from two open cashier tabs. The money is taken,

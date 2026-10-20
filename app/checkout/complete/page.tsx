@@ -8,6 +8,8 @@ import { getAuthUser, getProfile } from '@/lib/actions/auth';
 import { isPaidUser } from '@/lib/auth';
 import { MERCHANT_TRADE_NO_REGEX } from '@/lib/payment/config';
 import { findOrderForUser } from '@/lib/payment/orders';
+import { SUPPORT_EMAIL } from '@/lib/site';
+import type { Profile } from '@/types/user';
 
 /**
  * Shows the result of one ECPay payment.
@@ -45,10 +47,51 @@ type View =
   | 'failed'
   | 'refunded';
 
-const SUPPORT_EMAIL = 'hi.upchen@gmail.com';
+type Order = Awaited<ReturnType<typeof findOrderForUser>>;
 
 const PRIMARY_LINK_CLASS =
   'mt-2 px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors';
+
+/** Picks the view for an order the user's own lookup returned. */
+function viewForOrder(order: Order, profile: Profile | null, reportedFailed: boolean): View {
+  if (!order) return 'not_found';
+  // A refunded order never counts as a purchase, whatever the URL says.
+  if (order.status === 'refunded') return 'refunded';
+  // The database wins. A paid order shows success even with failed=1 in the URL.
+  // Success also needs an active licence. Until then the page keeps polling.
+  if (order.status === 'paid') return isPaidUser(profile) ? 'paid' : 'activating';
+  return reportedFailed ? 'failed' : 'pending';
+}
+
+/** Shows the large icon at the top of a result view. */
+function StatusIcon({ icon, color, pulse = false }: { icon: string; color: string; pulse?: boolean }) {
+  return (
+    <span
+      className={`material-symbols-outlined ${color} text-5xl${pulse ? ' animate-pulse' : ''}`}
+      aria-hidden="true"
+    >
+      {icon}
+    </span>
+  );
+}
+
+/** Shows the order number line under a result heading. */
+function OrderNumber({ orderNo }: { orderNo: string }) {
+  return (
+    <p className="text-sm text-gray-500">
+      訂單編號：<span className="font-mono">{orderNo}</span>
+    </p>
+  );
+}
+
+/** Links to the support mailbox. */
+function SupportMailLink() {
+  return (
+    <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary hover:underline">
+      {SUPPORT_EMAIL}
+    </a>
+  );
+}
 
 export default async function CheckoutCompletePage({
   searchParams,
@@ -59,34 +102,27 @@ export default async function CheckoutCompletePage({
   const orderParam = typeof params.order === 'string' ? params.order : '';
   const hasError = params.error === '1';
   const reportedFailed = params.failed === '1';
+  const orderParamIsValid = !hasError && MERCHANT_TRADE_NO_REGEX.test(orderParam);
 
   const user = await getAuthUser();
-  const profile = user ? await getProfile(user.id) : null;
+  // Both lookups need only the user id, so they run together.
+  // A broken order number skips the order lookup.
+  const [profile, order] = user
+    ? await Promise.all([
+        getProfile(user.id),
+        orderParamIsValid ? findOrderForUser(orderParam, user.id) : null,
+      ])
+    : [null, null];
 
   let view: View;
-  let amountTwd = 0;
-
-  if (hasError || !MERCHANT_TRADE_NO_REGEX.test(orderParam)) {
+  if (!orderParamIsValid) {
     view = 'error';
   } else if (!user) {
     view = 'login';
   } else {
-    const order = await findOrderForUser(orderParam, user.id);
-    if (!order) {
-      view = 'not_found';
-    } else if (order.status === 'refunded') {
-      // A refunded order never counts as a purchase, whatever the URL says.
-      view = 'refunded';
-    } else if (order.status === 'paid') {
-      // The database wins. A paid order shows success even with failed=1 in the URL.
-      // Success also needs an active licence. Until then the page keeps polling.
-      view = isPaidUser(profile) ? 'paid' : 'activating';
-      amountTwd = order.amount_twd;
-    } else {
-      view = reportedFailed ? 'failed' : 'pending';
-      amountTwd = order.amount_twd;
-    }
+    view = viewForOrder(order, profile, reportedFailed);
   }
+  const amountTwd = order?.amount_twd ?? 0;
 
   // After login the buyer comes back to this same order and view.
   const loginReturnTo = `/checkout/complete?order=${orderParam}${reportedFailed ? '&failed=1' : ''}`;
@@ -98,15 +134,11 @@ export default async function CheckoutCompletePage({
       <main className="flex-1 max-w-2xl mx-auto w-full px-6 py-16 flex flex-col items-center text-center gap-6">
         {view === 'error' && (
           <>
-            <span className="material-symbols-outlined text-red-400 text-5xl" aria-hidden="true">
-              error
-            </span>
+            <StatusIcon icon="error" color="text-red-400" />
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800">付款結果無法確認</h1>
             <p className="text-gray-600 max-w-md">
               我們無法確認這次付款的結果。若你已完成扣款，請來信{' '}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary hover:underline">
-                {SUPPORT_EMAIL}
-              </a>{' '}
+              <SupportMailLink />{' '}
               並附上付款時間，我們會盡快處理。
             </p>
             <Link href="/checkout" className={PRIMARY_LINK_CLASS}>
@@ -134,9 +166,7 @@ export default async function CheckoutCompletePage({
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800">找不到這筆訂單</h1>
             <p className="text-gray-600 max-w-md">
               請確認你登入的是下單時的帳號。若確定沒錯，請來信{' '}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary hover:underline">
-                {SUPPORT_EMAIL}
-              </a>{' '}
+              <SupportMailLink />{' '}
               並附上訂單編號 <span className="font-mono">{orderParam}</span>。
             </p>
           </>
@@ -144,16 +174,12 @@ export default async function CheckoutCompletePage({
 
         {view === 'paid' && (
           <>
-            <span className="material-symbols-outlined text-primary text-5xl" aria-hidden="true">
-              check_circle
-            </span>
+            <StatusIcon icon="check_circle" color="text-primary" />
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800">付款成功，Pro 終身版已開通</h1>
             <p className="text-gray-600 max-w-md">
               感謝你的支持。現在起單檔最大 100MB、自訂字典 10,000 組都已開放。
             </p>
-            <p className="text-sm text-gray-500">
-              訂單編號：<span className="font-mono">{orderParam}</span>
-            </p>
+            <OrderNumber orderNo={orderParam} />
             <Link href="/" className={PRIMARY_LINK_CLASS}>
               回到首頁開始轉換
             </Link>
@@ -163,27 +189,19 @@ export default async function CheckoutCompletePage({
 
         {view === 'activating' && (
           <>
-            <span className="material-symbols-outlined text-primary text-5xl animate-pulse" aria-hidden="true">
-              hourglass_top
-            </span>
+            <StatusIcon icon="hourglass_top" color="text-primary" pulse />
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800">付款完成，開通處理中</h1>
             <p className="text-gray-600 max-w-md">我們已收到你的付款，正在為你的帳號開通 Pro 終身版。</p>
-            <p className="text-sm text-gray-500">
-              訂單編號：<span className="font-mono">{orderParam}</span>
-            </p>
+            <OrderNumber orderNo={orderParam} />
             <PurchaseTracker status="activating" merchantTradeNo={orderParam} amountTwd={amountTwd} />
           </>
         )}
 
         {view === 'pending' && (
           <>
-            <span className="material-symbols-outlined text-amber-500 text-5xl animate-pulse" aria-hidden="true">
-              hourglass_top
-            </span>
+            <StatusIcon icon="hourglass_top" color="text-amber-500" pulse />
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800">付款確認中</h1>
-            <p className="text-sm text-gray-500">
-              訂單編號：<span className="font-mono">{orderParam}</span>
-            </p>
+            <OrderNumber orderNo={orderParam} />
             <PurchaseTracker status="pending" merchantTradeNo={orderParam} amountTwd={amountTwd} />
             <Link href="/checkout" className="text-sm text-primary hover:underline">
               還沒付款？回到結帳頁
@@ -193,16 +211,12 @@ export default async function CheckoutCompletePage({
 
         {view === 'failed' && (
           <>
-            <span className="material-symbols-outlined text-red-400 text-5xl" aria-hidden="true">
-              credit_card_off
-            </span>
+            <StatusIcon icon="credit_card_off" color="text-red-400" />
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800">付款未完成</h1>
             <p className="text-gray-600 max-w-md">
               綠界回報這筆付款沒有成功。你可以回到結帳頁再試一次，或改用另一張信用卡。
             </p>
-            <p className="text-sm text-gray-500">
-              訂單編號：<span className="font-mono">{orderParam}</span>
-            </p>
+            <OrderNumber orderNo={orderParam} />
             <Link href="/checkout" className={PRIMARY_LINK_CLASS}>
               回到結帳頁重新付款
             </Link>
@@ -210,13 +224,9 @@ export default async function CheckoutCompletePage({
         )}
         {view === 'refunded' && (
           <>
-            <span className="material-symbols-outlined text-gray-400 text-5xl" aria-hidden="true">
-              undo
-            </span>
+            <StatusIcon icon="undo" color="text-gray-400" />
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800">此訂單已退款</h1>
-            <p className="text-sm text-gray-500">
-              訂單編號：<span className="font-mono">{orderParam}</span>
-            </p>
+            <OrderNumber orderNo={orderParam} />
             <Link href="/checkout" className={PRIMARY_LINK_CLASS}>
               回到結帳頁
             </Link>

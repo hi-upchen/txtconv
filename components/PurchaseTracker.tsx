@@ -3,14 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trackPurchase } from '@/lib/analytics';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 /** How often the pending view asks the server for the order again. */
 const REFRESH_INTERVAL_MS = 3000;
 
 /** After this long we stop asking and tell the buyer how to reach us. */
 const GIVE_UP_AFTER_MS = 60_000;
-
-const SUPPORT_EMAIL = 'hi.upchen@gmail.com';
 
 /** Returns the sessionStorage key that marks an order as already reported. */
 export function purchaseTrackedKey(merchantTradeNo: string): string {

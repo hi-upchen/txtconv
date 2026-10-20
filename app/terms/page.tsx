@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getAuthUser, getProfile } from '@/lib/actions/auth';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 /**
  * Terms of service page. It states usage terms, plan entitlements and liability limits.
@@ -50,8 +51,8 @@ export default async function TermsPage() {
           <p className="text-sm leading-relaxed">
             Pro 終身授權售價新台幣 899 元，透過綠界科技（ECPay）以信用卡付款；本站不會接觸或保存你的完整信用卡號。
             如需退款，請於購買後 14 天內來信{' '}
-            <a href="mailto:hi.upchen@gmail.com" className="text-primary hover:underline">
-              hi.upchen@gmail.com
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary hover:underline">
+              {SUPPORT_EMAIL}
             </a>
             ，並附上訂單編號或付款時的 email，我們會透過綠界為你退刷至原信用卡。
           </p>

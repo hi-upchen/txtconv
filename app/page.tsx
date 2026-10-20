@@ -5,6 +5,7 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import PricingSection from '@/components/PricingSection';
 import { getAuthUser, getProfile, ensureProfileLinked } from '@/lib/actions/auth';
+import { PRO_LIFETIME_PRICE_TWD } from '@/lib/payment/price';
 
 export default async function Home() {
   const user = await getAuthUser();
@@ -132,7 +133,12 @@ export default async function Home() {
               inLanguage: 'zh-TW',
               offers: [
                 { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'TWD' },
-                { '@type': 'Offer', name: 'Lifetime', price: '899', priceCurrency: 'TWD' },
+                {
+                  '@type': 'Offer',
+                  name: 'Lifetime',
+                  price: String(PRO_LIFETIME_PRICE_TWD),
+                  priceCurrency: 'TWD',
+                },
               ],
             }),
           }}

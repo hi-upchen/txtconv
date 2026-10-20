@@ -13,6 +13,7 @@ import {
 import { isPaidUser } from '@/lib/auth';
 import { updateDictCache } from '@/lib/client-converter';
 import { trackUpgradeCtaClicked } from '@/lib/analytics';
+import { CHECKOUT_PATH } from '@/lib/payment/price';
 import LoginDialog from './LoginDialog';
 
 interface CustomDictEditorProps {
@@ -338,7 +339,7 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
                         <span>免費版僅支援 {limit} 組對照，升級以解鎖 10,000 組</span>
                       </div>
                       <Link
-                        href="/checkout"
+                        href={CHECKOUT_PATH}
                         className="shrink-0 px-4 py-1.5 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors"
                       >
                         升級 Pro

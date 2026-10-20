@@ -38,7 +38,6 @@ describe('lib/payment/config', () => {
   describe('getEcpayConfig', () => {
     it('defaults to the public sandbox merchant when ECPAY_ENV is unset', () => {
       const config = getEcpayConfig();
-      expect(config.isProduction).toBe(false);
       expect(config.merchantId).toBe(ECPAY_SANDBOX_CREDENTIALS.merchantId);
       expect(config.hashKey).toBe(ECPAY_SANDBOX_CREDENTIALS.hashKey);
       expect(config.hashIV).toBe(ECPAY_SANDBOX_CREDENTIALS.hashIV);
@@ -47,7 +46,7 @@ describe('lib/payment/config', () => {
 
     it('treats any ECPAY_ENV other than "production" as sandbox', () => {
       process.env.ECPAY_ENV = 'staging';
-      expect(getEcpayConfig().isProduction).toBe(false);
+      expect(getEcpayConfig().checkoutUrl).toBe('https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5');
     });
 
     it('uses the live endpoint and the configured keys in production', () => {
@@ -56,7 +55,6 @@ describe('lib/payment/config', () => {
       process.env.ECPAY_HASH_KEY = 'prodkeyprodkey00';
       process.env.ECPAY_HASH_IV = 'prodivprodiv0000';
       const config = getEcpayConfig();
-      expect(config.isProduction).toBe(true);
       expect(config.merchantId).toBe('1234567');
       expect(config.checkoutUrl).toBe('https://payment.ecpay.com.tw/Cashier/AioCheckOut/V5');
     });
@@ -77,7 +75,7 @@ describe('lib/payment/config', () => {
 
     it('does not throw on Vercel preview deployments without ECPay variables', () => {
       process.env.VERCEL_ENV = 'preview';
-      expect(getEcpayConfig().isProduction).toBe(false);
+      expect(getEcpayConfig().checkoutUrl).toBe('https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5');
     });
   });
 

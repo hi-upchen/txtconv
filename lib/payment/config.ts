@@ -48,8 +48,6 @@ export interface EcpayConfig {
   hashIV: string;
   /** The AioCheckOut V5 endpoint for this environment. */
   checkoutUrl: string;
-  /** True only when `ECPAY_ENV === 'production'`. */
-  isProduction: boolean;
 }
 
 /**
@@ -79,7 +77,7 @@ export function getEcpayConfig(): EcpayConfig {
         'ECPAY_MERCHANT_ID, ECPAY_HASH_KEY and ECPAY_HASH_IV are all required in production',
       );
     }
-    return { merchantId, hashKey, hashIV, checkoutUrl: PRODUCTION_CHECKOUT_URL, isProduction: true };
+    return { merchantId, hashKey, hashIV, checkoutUrl: PRODUCTION_CHECKOUT_URL };
   }
 
   return {
@@ -87,7 +85,6 @@ export function getEcpayConfig(): EcpayConfig {
     hashKey: process.env.ECPAY_HASH_KEY || ECPAY_SANDBOX_CREDENTIALS.hashKey,
     hashIV: process.env.ECPAY_HASH_IV || ECPAY_SANDBOX_CREDENTIALS.hashIV,
     checkoutUrl: SANDBOX_CHECKOUT_URL,
-    isProduction: false,
   };
 }
 
