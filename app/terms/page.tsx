@@ -2,10 +2,12 @@ import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getAuthUser, getProfile } from '@/lib/actions/auth';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 /**
- * Terms of service page. States usage terms, plan entitlements, refund
- * channel (Gumroad), and liability limits; linked from the site footer.
+ * Terms of service page. It states usage terms, plan entitlements and liability limits.
+ * It also names the payment provider, ECPay, and the refund channel.
+ * The site footer links here.
  */
 
 export const metadata: Metadata = {
@@ -24,7 +26,7 @@ export default async function TermsPage() {
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-12 space-y-8 text-gray-700">
         <h1 className="text-3xl font-bold text-gray-800">服務條款</h1>
-        <p className="text-sm text-gray-500">最後更新：2026 年 7 月 3 日</p>
+        <p className="text-sm text-gray-500">最後更新：2026 年 10 月 19 日</p>
 
         <section className="space-y-3">
           <h2 className="text-xl font-bold text-gray-800">服務內容</h2>
@@ -47,11 +49,12 @@ export default async function TermsPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-bold text-gray-800">付款與退款</h2>
           <p className="text-sm leading-relaxed">
-            Pro 方案透過 Gumroad 付款。如需退款，請於購買後 14 天內來信{' '}
-            <a href="mailto:hi.upchen@gmail.com" className="text-primary hover:underline">
-              hi.upchen@gmail.com
-            </a>{' '}
-            或透過 Gumroad 申請。
+            Pro 終身授權售價新台幣 899 元，透過綠界科技（ECPay）以信用卡付款；本站不會接觸或保存你的完整信用卡號。
+            如需退款，請於購買後 14 天內來信{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary hover:underline">
+              {SUPPORT_EMAIL}
+            </a>
+            ，並附上訂單編號或付款時的 email，我們會透過綠界為你退刷至原信用卡。
           </p>
         </section>
 

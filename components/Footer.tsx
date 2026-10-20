@@ -1,3 +1,5 @@
+import { SUPPORT_EMAIL } from '@/lib/site';
+
 export default function Footer() {
   const version = process.env.BUILD_VERSION || 'dev';
 
@@ -34,8 +36,8 @@ export default function Footer() {
           <div className="flex items-center gap-3">
             {/* Email */}
             <a
-              href="mailto:hi.upchen@gmail.com"
-              title="hi.upchen@gmail.com"
+              href={`mailto:${SUPPORT_EMAIL}`}
+              title={SUPPORT_EMAIL}
               className="hover:text-gray-600 transition-colors"
             >
               <span className="material-symbols-outlined text-sm">mail</span>

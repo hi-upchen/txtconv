@@ -12,6 +12,7 @@ import type {
   FileRejectedEvent,
   BeginCheckoutEvent,
   UpgradeCtaClickedEvent,
+  PurchaseEvent,
   LoginMethod,
   LoginStartedEvent,
   LoginSucceededEvent,
@@ -171,20 +172,44 @@ export function trackFileRejected(
 }
 
 /**
- * Track a click on a "buy" button that hands off to Gumroad checkout.
- * Fired before navigation; measures how many visitors reach checkout,
- * which pages drive purchases, and (vs. Gumroad sales) checkout drop-off.
+ * Track a click on a "buy" button that leads to our checkout page.
+ * Fired before navigation. It measures how many visitors start checkout
+ * and which pages drive purchases.
  *
- * @param value - Price shown to the user (USD)
- * @param itemName - Product/plan name (e.g. "lifetime")
+ * @param value - Price shown to the user, in New Taiwan Dollars
+ * @param itemName - Product or plan name, e.g. "lifetime"
  */
 export function trackBeginCheckout(value: number, itemName: string): void {
   const event: BeginCheckoutEvent = {
     event: 'begin_checkout',
-    currency: 'USD',
+    currency: 'TWD',
     value,
     item_name: itemName,
     source_path: window.location.pathname,
+  };
+
+  pushEvent(event);
+}
+
+/**
+ * Track a completed payment.
+ * The completion page calls it once per order.
+ *
+ * @param input.transactionId - Our order number, the ECPay MerchantTradeNo
+ * @param input.value - Amount paid
+ * @param input.currency - ISO 4217 currency code, TWD for ECPay
+ */
+export function trackPurchase(input: {
+  transactionId: string;
+  value: number;
+  currency: string;
+}): void {
+  const event: PurchaseEvent = {
+    event: 'purchase',
+    transaction_id: input.transactionId,
+    value: input.value,
+    currency: input.currency,
+    items: [{ item_name: 'lifetime', price: input.value, quantity: 1 }],
   };
 
   pushEvent(event);

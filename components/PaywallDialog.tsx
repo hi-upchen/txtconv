@@ -3,6 +3,13 @@
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { trackBeginCheckout, trackUpgradeCtaClicked } from '@/lib/analytics';
+import {
+  CHECKOUT_PATH,
+  PRO_LIFETIME_PRICE_TWD,
+  PRO_PRICE_LABEL,
+  REFUND_NOTE,
+} from '@/lib/payment/price';
+import ProBenefits from './ProBenefits';
 
 export interface PaywallDialogProps {
   /** Whether the dialog is currently shown. */
@@ -13,34 +20,24 @@ export interface PaywallDialogProps {
   fileName: string;
   /** File size in megabytes, already formatted to two decimals (e.g. "8.42"). */
   fileSizeMB: string;
-  /** Destination of the buy button; the configured Gumroad product page. */
-  gumroadUrl: string;
 }
 
 /**
- * Upgrade prompt shown the moment a file is rejected for exceeding the free
- * tier's 5MB limit.
+ * Upgrade prompt shown when a file is rejected for the free 5MB limit.
  *
- * Why it exists: previously a rejected file only produced a small inline
- * "upgrade" link inside the error row. Measured behaviour showed almost
- * nobody followed it, and on the landing pages that embed the converter the
- * link pointed at a "#pricing" anchor that does not exist outside the
- * homepage, so it did nothing at all. Presenting the offer as a dialog at
- * the exact moment the limit is hit removes both problems: the offer is
- * impossible to miss, and the buy button leaves for the payment page
- * directly instead of relying on same-page navigation.
+ * The dialog appears at the exact moment the limit is hit.
+ * Its buy button goes straight to our checkout page in the same tab.
+ * Checkout needs the user's session, so the buyer stays in this tab.
+ * The secondary link opens the full plan comparison on the homepage.
  *
- * Trade-off: a dialog interrupts the user, which is intrusive if it appears
- * repeatedly. The caller therefore auto-opens it at most once per browser
- * session and otherwise only on an explicit click, so a user who declines
- * the offer is never interrupted again during that visit.
+ * A dialog interrupts the user. So the caller opens it by itself at most
+ * once per browser session. After that it opens only on an explicit click.
  */
 export default function PaywallDialog({
   open,
   onClose,
   fileName,
   fileSizeMB,
-  gumroadUrl,
 }: PaywallDialogProps) {
   const primaryButtonRef = useRef<HTMLAnchorElement>(null);
 
@@ -113,31 +110,23 @@ export default function PaywallDialog({
           「{fileName}」大小為 {fileSizeMB}MB。升級 Pro 終身版即可轉換最大 100MB 的檔案。
         </p>
 
-        <ul className="text-left w-full space-y-3 mb-8 text-gray-600 text-sm">
-          <li className="flex items-start gap-2">
-            <span className="text-gray-900 mt-0.5">•</span>
-            單檔最大 100MB，批次轉換不受限
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-gray-900 mt-0.5">•</span>
-            自訂字典 10,000 組，固定人名與專有名詞譯法
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-gray-900 mt-0.5">•</span>
-            一次付費 US$30，永久使用，包含所有未來新功能
-          </li>
-        </ul>
+        <ProBenefits
+          className="text-left w-full space-y-3 mb-8 text-gray-600 text-sm"
+          dictionaryWording="explained"
+          extraItems={[`一次付費 ${PRO_PRICE_LABEL}，永久使用，包含所有未來新功能`]}
+        />
 
-        <a
+        {/* Same-tab link to our checkout page. Checkout needs this tab's login session. */}
+        <Link
           ref={primaryButtonRef}
-          href={gumroadUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => trackBeginCheckout(30, 'lifetime')}
+          href={CHECKOUT_PATH}
+          onClick={() => trackBeginCheckout(PRO_LIFETIME_PRICE_TWD, 'lifetime')}
           className="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
         >
-          升級 Pro 終身版 US$30 →
-        </a>
+          升級 Pro 終身版 {PRO_PRICE_LABEL} →
+        </Link>
+
+        <p className="mt-3 text-xs text-gray-500 text-center">{REFUND_NOTE}</p>
 
         <div className="mt-4 flex flex-col items-center gap-3">
           {/*

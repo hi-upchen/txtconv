@@ -1,6 +1,6 @@
 'use client';
 
-import { applyCustomDict, parseDictionary, type DictPair } from '@/lib/custom-dict';
+import { applyCustomDict, getDictPairLimit, parseDictionary, type DictPair } from '@/lib/custom-dict';
 import { convertEpubBytes, EPUB_MIME_TYPE } from '@/lib/epub-converter';
 import { createClient } from '@/lib/supabase/client';
 import { TEST_USER_ID, TEST_CUSTOM_DICT_PAIRS } from '@/lib/test-user';
@@ -167,7 +167,7 @@ export async function loadUserDictionary(userId: string | undefined): Promise<Di
     const pairs = parseDictionary(csvText);
 
     // Apply license limit
-    const limit = profile.license_type === 'free' ? 5 : 10000;
+    const limit = getDictPairLimit(profile.license_type);
     cachedDictPairs = pairs.slice(0, limit);
     dictCacheUserId = userId;
 

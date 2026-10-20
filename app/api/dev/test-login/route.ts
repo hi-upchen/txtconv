@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { TEST_USER_ID } from '@/lib/test-user';
 
@@ -13,7 +13,7 @@ import { TEST_USER_ID } from '@/lib/test-user';
  * Note: Custom dictionary is loaded client-side via getTestSession() in
  * client-converter.ts when it detects the test-session cookie.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   // Security guard 1: Block in production
   if (process.env.NODE_ENV === 'production') {
     return NextResponse.json(
@@ -35,12 +35,17 @@ export async function GET() {
     const cookieStore = await cookies();
 
     // Create mock session data
+    // license=free lets a test reach the paid-upgrade path.
+    // The checkout page sends lifetime users home. Any other value means lifetime.
+    const license = request.nextUrl.searchParams.get('license') === 'free' ? 'free' : 'lifetime';
+
     const mockSession = {
       user: {
         id: TEST_USER_ID,
         email: 'test@txtconv.local',
         role: 'authenticated',
       },
+      license,
       expires_at: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
     };
 

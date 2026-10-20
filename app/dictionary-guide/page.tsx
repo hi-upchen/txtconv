@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import { getAuthUser, getProfile } from '@/lib/actions/auth';
+import { PRO_PRICE_LABEL } from '@/lib/payment/price';
 
 /**
  * SEO/education page for the custom dictionary (自訂字典) — txtconv's
@@ -41,7 +42,7 @@ const DICT_FAQ = [
   {
     question: '免費版有什麼限制？',
     answer:
-      '編輯自訂字典需要先登入（輸入 Email 即可免費註冊，無須密碼）。免費版可設定 5 組對照，Pro 版（終身授權 US$30）可設定最多 10,000 組。字典儲存在你的帳號中，輸入後約 1 秒自動儲存，換裝置登入也能繼續使用。',
+      `編輯自訂字典需要先登入（輸入 Email 即可免費註冊，無須密碼）。免費版可設定 5 組對照，Pro 版（終身授權 ${PRO_PRICE_LABEL}）可設定最多 10,000 組。字典儲存在你的帳號中，輸入後約 1 秒自動儲存，換裝置登入也能繼續使用。`,
   },
 ];
 

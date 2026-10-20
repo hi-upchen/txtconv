@@ -2,7 +2,7 @@
 
 import { cookies } from 'next/headers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import type { Profile } from '@/types/user';
+import type { Profile, LicenseType } from '@/types/user';
 import type { User } from '@supabase/supabase-js';
 import { TEST_USER_ID } from '@/lib/test-user';
 
@@ -15,8 +15,9 @@ function isTestLoginEnabled(): boolean {
 
 /**
  * Get test session from cookie if valid.
+ * The license field picks the mock plan. Anything except "free" means lifetime.
  */
-async function getTestSession(): Promise<{ userId: string; email: string } | null> {
+async function getTestSession(): Promise<{ userId: string; email: string; license: LicenseType } | null> {
   if (!isTestLoginEnabled()) return null;
 
   try {
@@ -26,7 +27,11 @@ async function getTestSession(): Promise<{ userId: string; email: string } | nul
 
     const session = JSON.parse(testSessionCookie.value);
     if (session?.user?.id === TEST_USER_ID) {
-      return { userId: session.user.id, email: session.user.email };
+      return {
+        userId: session.user.id,
+        email: session.user.email,
+        license: session.license === 'free' ? 'free' : 'lifetime',
+      };
     }
   } catch {
     // Invalid cookie format
@@ -54,12 +59,14 @@ export async function getAuthUser(): Promise<User | null> {
 }
 
 export async function getProfile(userId: string): Promise<Profile | null> {
-  // Return mock profile for test user (dev only)
+  // Return a mock profile for the test user (dev only).
+  // The test-session cookie picks the plan. Without the cookie it stays lifetime.
   if (isTestLoginEnabled() && userId === TEST_USER_ID) {
+    const testSession = await getTestSession();
     return {
       id: TEST_USER_ID,
       email: 'test@txtconv.local',
-      license_type: 'lifetime',
+      license_type: testSession?.license ?? 'lifetime',
       custom_dict_url: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

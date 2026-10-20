@@ -1,4 +1,6 @@
 import {
+  FORWARDED_EVENTS,
+  FORWARDED_PARAMS,
   extendEventRegex,
   addSettingsRows,
   pickWorkspace,
@@ -91,5 +93,29 @@ describe('stripReadOnly', () => {
         tagManagerUrl: 'https://tagmanager.google.com/#/x',
       })
     ).toEqual({ name: 't', type: 'gaawe', parameter: [] });
+  });
+});
+
+describe('forwarded events and parameters', () => {
+  it('forwards purchase with its transaction id and items', () => {
+    expect(FORWARDED_EVENTS).toContain('purchase');
+    expect(FORWARDED_PARAMS).toEqual(
+      expect.arrayContaining([
+        { dataLayerKey: 'transaction_id', ga4Param: 'transaction_id' },
+        { dataLayerKey: 'items', ga4Param: 'items' },
+      ])
+    );
+  });
+
+  it('keeps the login events and parameters, so a run never drops them', () => {
+    expect(FORWARDED_EVENTS).toEqual(
+      expect.arrayContaining(['login_started', 'login_succeeded', 'login_failed'])
+    );
+    expect(FORWARDED_PARAMS).toEqual(
+      expect.arrayContaining([
+        { dataLayerKey: 'method', ga4Param: 'login_method' },
+        { dataLayerKey: 'reason', ga4Param: 'login_failure_reason' },
+      ])
+    );
   });
 });
