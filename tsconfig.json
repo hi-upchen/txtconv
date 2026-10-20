@@ -35,7 +35,14 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
+  // Jest tests and mocks run under jest, not the app build. They use jest
+  // globals that the app has no types for. Next.js type-checks every included
+  // file during the build, so these files stay out of this project.
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "__tests__",
+    "lib/__mocks__",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }
