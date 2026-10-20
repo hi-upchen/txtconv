@@ -235,3 +235,19 @@ export async function findOtherPaidOrder(
   const rows = (data ?? []) as Array<{ merchant_trade_no: string }>;
   return rows.length > 0 ? rows[0].merchant_trade_no : null;
 }
+
+/**
+ * Lists the order number and buyer of every paid order.
+ *
+ * The health page uses this to compare orders with licences.
+ * It throws on a database error, so the check fails instead of passing.
+ */
+export async function listPaidOrders(): Promise<{ merchant_trade_no: string; user_id: string }[]> {
+  const { data, error } = await createServiceClient()
+    .from('ecpay_orders')
+    .select('merchant_trade_no, user_id')
+    .eq('status', 'paid');
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as { merchant_trade_no: string; user_id: string }[];
+}

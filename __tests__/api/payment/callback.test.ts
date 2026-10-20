@@ -6,6 +6,12 @@ const mockMarkOrderPaid = jest.fn();
 const mockGrantLifetime = jest.fn();
 const mockFindOtherPaidOrder = jest.fn();
 const mockVerifyCallbackSafely = jest.fn();
+const mockReadEcpayForm = jest.fn();
+const mockRecordPaymentFailure = jest.fn();
+
+jest.mock('@/lib/health/payments', () => ({
+  recordPaymentFailure: (...args: unknown[]) => mockRecordPaymentFailure(...args),
+}));
 
 jest.mock('@/lib/payment/orders', () => ({
   findOrderByTradeNo: (...args: unknown[]) => mockFindOrderByTradeNo(...args),
@@ -20,6 +26,7 @@ jest.mock('@/lib/payment/ecpay', () => {
   return {
     ...actual,
     verifyCallbackSafely: (...args: unknown[]) => mockVerifyCallbackSafely(...args),
+    readEcpayForm: (...args: unknown[]) => mockReadEcpayForm(...args),
   };
 });
 
@@ -28,6 +35,7 @@ import { buildCheckMacValue } from '@/lib/payment/ecpay';
 import { ECPAY_SANDBOX_CREDENTIALS } from '@/lib/payment/config';
 
 const actualVerifyCallbackSafely = jest.requireActual('@/lib/payment/ecpay').verifyCallbackSafely;
+const actualReadEcpayForm = jest.requireActual('@/lib/payment/ecpay').readEcpayForm;
 
 const ORDER = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -102,6 +110,8 @@ describe('POST /api/payment/ecpay/callback', () => {
     // Most tests exercise the grant path, so the local sandbox opt-in is on.
     process.env.ECPAY_SANDBOX_GRANT = 'true';
     mockVerifyCallbackSafely.mockReset().mockImplementation(actualVerifyCallbackSafely);
+    mockReadEcpayForm.mockReset().mockImplementation(actualReadEcpayForm);
+    mockRecordPaymentFailure.mockReset();
     mockFindOrderByTradeNo.mockReset().mockResolvedValue(ORDER);
     mockMarkOrderPaid.mockReset().mockResolvedValue('paid_now');
     mockGrantLifetime.mockReset().mockResolvedValue(true);
@@ -417,5 +427,134 @@ describe('POST /api/payment/ecpay/callback', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/plain');
     expect(await res.text()).toBe('0|internal error');
+  });
+
+  describe('failure records for the health page', () => {
+    /** A body signed without MerchantTradeNo. */
+    function bodyWithoutTradeNo(): Record<string, string> {
+      const body = signedBody();
+      delete body.MerchantTradeNo;
+      body.CheckMacValue = buildCheckMacValue(
+        Object.fromEntries(Object.entries(body).filter(([k]) => k !== 'CheckMacValue')),
+        ECPAY_SANDBOX_CREDENTIALS.hashKey,
+        ECPAY_SANDBOX_CREDENTIALS.hashIV,
+      );
+      return body;
+    }
+
+    it.each<[string, () => Record<string, string>, string, unknown[]]>([
+      ['a missing trade number', bodyWithoutTradeNo, '0|missing MerchantTradeNo', ['付款回呼缺訂單編號']],
+      [
+        'an unknown order with its trade number',
+        () => {
+          mockFindOrderByTradeNo.mockResolvedValue(null);
+          return signedBody();
+        },
+        '0|order not found',
+        ['付款訂單找不到（或資料庫查詢失敗）', ORDER.merchant_trade_no],
+      ],
+      [
+        'not_found from the atomic update',
+        () => {
+          mockMarkOrderPaid.mockResolvedValue('not_found');
+          return signedBody();
+        },
+        '0|order not found',
+        ['付款訂單找不到（或資料庫查詢失敗）', ORDER.merchant_trade_no],
+      ],
+      [
+        'an amount mismatch',
+        () => signedBody({ TradeAmt: '1' }),
+        '0|amount mismatch (TradeAmt=1)',
+        ['付款金額不符', ORDER.merchant_trade_no],
+      ],
+      [
+        'an error after the signature verified',
+        () => {
+          mockFindOrderByTradeNo.mockRejectedValue(new Error('db down'));
+          return signedBody();
+        },
+        '0|internal error',
+        ['付款回呼發生錯誤', ORDER.merchant_trade_no],
+      ],
+      [
+        'an error after the signature with an empty MerchantTradeNo',
+        () => {
+          // The warning for the missing order number throws, so the catch block runs.
+          jest.spyOn(console, 'warn').mockImplementation((message?: unknown) => {
+            if (message === 'ecpay/callback: missing MerchantTradeNo') throw new Error('log sink down');
+          });
+          return signedBody({ MerchantTradeNo: '' });
+        },
+        '0|internal error',
+        ['付款回呼發生錯誤', ''],
+      ],
+    ])('records %s', async (_name, arrange, answer, recordArgs) => {
+      expect(await post(arrange())).toBe(answer);
+      expect(mockRecordPaymentFailure).toHaveBeenCalledTimes(1);
+      expect(mockRecordPaymentFailure).toHaveBeenCalledWith(...recordArgs);
+    });
+
+    it.each<[string, () => Record<string, string>, string]>([
+      [
+        'a body that throws before the signature is verified',
+        () => {
+          mockReadEcpayForm.mockRejectedValue(new Error('bad body'));
+          return signedBody();
+        },
+        '0|internal error',
+      ],
+      [
+        'an invalid signature',
+        () => ({ ...signedBody(), CheckMacValue: 'DEADBEEF' }),
+        '0|CheckMacValue verify failed',
+      ],
+      ['a non-success RtnCode', () => signedBody({ RtnCode: '10100058' }), '0|payment not successful (RtnCode=10100058)'],
+      ['SimulatePaid', () => signedBody({ SimulatePaid: '1' }), '1|OK'],
+      [
+        'the sandbox acknowledgement',
+        () => {
+          delete process.env.ECPAY_SANDBOX_GRANT;
+          return signedBody();
+        },
+        '1|OK',
+      ],
+      [
+        'a refunded order',
+        () => {
+          mockFindOrderByTradeNo.mockResolvedValue({ ...ORDER, status: 'refunded' });
+          return signedBody();
+        },
+        '1|OK',
+      ],
+      [
+        'an order refunded between lookup and update',
+        () => {
+          mockMarkOrderPaid.mockResolvedValue('refunded');
+          return signedBody();
+        },
+        '1|OK',
+      ],
+      [
+        'a grant failure',
+        () => {
+          mockGrantLifetime.mockResolvedValue(false);
+          return signedBody();
+        },
+        '0|grant failed',
+      ],
+      [
+        'a double payment',
+        () => {
+          mockFindOtherPaidOrder.mockResolvedValue('TCzzzzzzzzzzzzzzzzzz');
+          return signedBody();
+        },
+        '1|OK',
+      ],
+      ['a success', () => signedBody(), '1|OK'],
+    ])('records nothing for %s', async (_name, arrange, answer) => {
+      expect(await post(arrange())).toBe(answer);
+      expect(mockRecordPaymentFailure).not.toHaveBeenCalled();
+    });
   });
 });

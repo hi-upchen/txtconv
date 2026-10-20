@@ -15,6 +15,7 @@ import {
   findOrderForUser,
   findOtherPaidOrder,
   grantLifetime,
+  listPaidOrders,
   markOrderPaid,
   type EcpayOrder,
 } from '@/lib/payment/orders';
@@ -264,5 +265,28 @@ describe('findOtherPaidOrder', () => {
     expect(await findOtherPaidOrder(ORDER.user_id, ORDER.merchant_trade_no)).toBeNull();
     mockFrom.mockReturnValueOnce(queryResolvingTo({ data: null, error: { message: 'down' } }));
     expect(await findOtherPaidOrder(ORDER.user_id, ORDER.merchant_trade_no)).toBeNull();
+  });
+});
+
+describe('listPaidOrders', () => {
+  it('selects the order number and buyer of every paid order', async () => {
+    const rows = [{ merchant_trade_no: 'TC1', user_id: 'u1' }];
+    const q = queryResolvingTo({ data: rows, error: null });
+    mockFrom.mockReturnValueOnce(q);
+
+    expect(await listPaidOrders()).toEqual(rows);
+    expect(mockFrom).toHaveBeenCalledWith('ecpay_orders');
+    expect(q.select).toHaveBeenCalledWith('merchant_trade_no, user_id');
+    expect(q.eq).toHaveBeenCalledWith('status', 'paid');
+  });
+
+  it('returns an empty list when the data is null', async () => {
+    mockFrom.mockReturnValueOnce(queryResolvingTo({ data: null, error: null }));
+    expect(await listPaidOrders()).toEqual([]);
+  });
+
+  it('throws on a database error', async () => {
+    mockFrom.mockReturnValueOnce(queryResolvingTo({ data: null, error: { message: 'db down' } }));
+    await expect(listPaidOrders()).rejects.toThrow('db down');
   });
 });

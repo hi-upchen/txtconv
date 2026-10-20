@@ -50,6 +50,11 @@ export interface EcpayConfig {
   checkoutUrl: string;
 }
 
+/** Says whether this environment uses the live ECPay store. */
+export function isEcpayProduction(): boolean {
+  return process.env.ECPAY_ENV === 'production';
+}
+
 /**
  * Reads the ECPay settings from the environment.
  *
@@ -59,7 +64,7 @@ export interface EcpayConfig {
  * Either case would send real buyers to the wrong cashier.
  */
 export function getEcpayConfig(): EcpayConfig {
-  const isProduction = process.env.ECPAY_ENV === 'production';
+  const isProduction = isEcpayProduction();
   const onVercelProduction = process.env.VERCEL_ENV === 'production';
 
   if (onVercelProduction && !isProduction) {
@@ -97,9 +102,7 @@ export function getEcpayConfig(): EcpayConfig {
  * A local sandbox run can opt in with `ECPAY_SANDBOX_GRANT=true`.
  */
 export function isSandboxGrantAllowed(): boolean {
-  return (
-    process.env.ECPAY_ENV === 'production' || process.env.ECPAY_SANDBOX_GRANT === 'true'
-  );
+  return isEcpayProduction() || process.env.ECPAY_SANDBOX_GRANT === 'true';
 }
 
 /** Prefix on every order number. It makes our orders easy to spot in ECPay's backend. */
