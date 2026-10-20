@@ -48,12 +48,12 @@ export default async function CheckoutPage() {
       <Header user={user} profile={profile} />
 
       <main className="flex-1 max-w-2xl mx-auto w-full px-6 py-12 flex flex-col gap-8">
-        <h1 className="text-3xl font-bold text-gray-800">購買 Pro 終身版</h1>
+        <h1 className="text-3xl font-bold text-gray-800 text-center">購買 Pro 終身版</h1>
 
         {!user ? (
-          <section className="space-y-6">
+          <section className="flex flex-col items-center gap-6 text-center">
             <p className="text-gray-600">購買會綁定你的 email，請先登入</p>
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6 max-w-sm">
+            <div className="w-full max-w-sm text-left bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
               <LoginPanel
                 returnTo="/checkout"
                 heading="先登入，再付款"
