@@ -102,3 +102,38 @@ having count(*) > 1;
 3. GTM 發佈 `purchase`（腳本 `scripts/gtm-add-events.ts`，先 `--dry-run`）。
 4. owner 真刷一筆 NT$899：帳號變終身版 → GA4 即時報表看到 `purchase`（含 value、currency）→ 照「一、手動退款」退掉這一筆（第一次實際演練退款流程）。
 5. Gumroad 後台把 Pro 商品下架（unpublish，不要刪除；舊客的退款通知仍會打進 webhook）。
+
+## 四、監控
+
+UptimeRobot 有四個監控，都是每 5 分鐘一次：
+
+| 監控 | 打的網址 | 壞了代表 |
+|---|---|---|
+| `txtconv home` | 首頁 | 整個網站掛了 |
+| `txtconv core` | `/api/health?key=…&group=core` | 資料庫、登入服務或字典檔庫壞了 |
+| `txtconv payments` | `/api/health?key=…&group=payments` | 付款設定錯了、有人付了錢沒開通、有人付了兩次 |
+| `txtconv callbacks` | `/api/health?key=…&group=callbacks` | 24 小時內有綠界付款通知處理失敗 |
+
+`key` 的值是 Vercel Production 的 `HEALTH_CHECK_KEY`。不帶 `group` 就跑全部檢查，方便手動查看。
+
+`txtconv payments` 每 5 分鐘自動跑一次「二、對帳查詢」的 A 和 B 兩條查詢。
+
+- `paidOrders` 失敗：代表有人付了錢但帳號不是終身版（查詢 A）。照「二、對帳查詢」A 的步驟手動開通，下一次檢查就會轉綠。
+- `paidOrders` 的原因是「資料超過 1000 筆，請改用 SQL 對帳查詢」：資料太多，檢查讀不完。到 Supabase SQL 編輯器直接跑查詢 A。
+- `doublePaid` 失敗：代表同一個人付了兩次（查詢 B）。照 B 的步驟退掉多的那筆，下一次檢查就會轉綠。
+
+`txtconv callbacks` 只看一件事。
+
+- `callbackFailures` 失敗：代表有一筆簽章正確、但處理失敗的綠界付款通知。原因欄會寫出原因和訂單編號。
+- 原因是「付款訂單找不到（或資料庫查詢失敗）」時，訂單可能真的不存在，也可能是當時資料庫出錯。
+- 先查 Vercel 執行紀錄，再到綠界後台核對這筆訂單。
+- 這個失敗會在 24 小時後自己消失。
+- 查完想提早轉綠，就到 Supabase SQL 編輯器刪掉紀錄：
+
+  ```sql
+  delete from public.ecpay_callback_failures;
+  ```
+
+只有正式商店（`ECPAY_ENV=production`）會寫這種紀錄。預覽和本機的測試付款不會讓監控變紅。
+
+頁面最多快取 60 秒，所以修好後最多等 1 分鐘再加上一個輪詢週期才會轉綠。

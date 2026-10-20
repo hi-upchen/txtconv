@@ -10,6 +10,7 @@ import {
   formatMerchantTradeDate,
   generateMerchantTradeNo,
   getEcpayConfig,
+  isEcpayProduction,
   isSandboxGrantAllowed,
   parseEcpayPaymentDate,
 } from '@/lib/payment/config';
@@ -33,6 +34,18 @@ describe('lib/payment/config', () => {
 
   it('fixes the lifetime price at NT$899', () => {
     expect(PRO_LIFETIME_PRICE_TWD).toBe(899);
+  });
+
+  describe('isEcpayProduction', () => {
+    it.each([
+      [undefined, false],
+      ['sandbox', false],
+      ['Production', false],
+      ['production', true],
+    ])('ECPAY_ENV=%s gives %s', (value, expected) => {
+      if (value !== undefined) process.env.ECPAY_ENV = value;
+      expect(isEcpayProduction()).toBe(expected);
+    });
   });
 
   describe('getEcpayConfig', () => {

@@ -19,6 +19,7 @@
  * A late callback for a refunded order answers `1|OK` and grants nothing.
  */
 
+import { recordPaymentFailure } from '@/lib/health/payments';
 import { readEcpayForm, verifyCallbackSafely } from '@/lib/payment/ecpay';
 import {
   getEcpayConfig,
@@ -34,6 +35,9 @@ import {
 
 /** ECPay callbacks are always dynamic server-to-server POSTs. */
 export const dynamic = 'force-dynamic';
+
+/** The failure record for an order that the lookup or the update did not find. */
+const ORDER_NOT_FOUND_REASON = '付款訂單找不到（或資料庫查詢失敗）';
 
 /** Plain-text 200 response in ECPay's `code|message` shape. */
 function ecpayResponse(body: string): Response {
@@ -57,6 +61,9 @@ function acknowledgeWithoutGranting(reason: string, merchantTradeNo: string): Re
 /** Verifies one ECPay callback and grants lifetime when every check passes. */
 export async function POST(request: Request): Promise<Response> {
   let merchantTradeNo = '';
+  // Only a signed callback is worth a failure record. An unsigned request only
+  // logs, because anyone can send one.
+  let signatureVerified = false;
   try {
     const body = await readEcpayForm(request);
     merchantTradeNo = body.MerchantTradeNo ?? '';
@@ -68,6 +75,7 @@ export async function POST(request: Request): Promise<Response> {
       console.warn('ecpay/callback: CheckMacValue verification failed', { merchantTradeNo });
       return ecpayResponse('0|CheckMacValue verify failed');
     }
+    signatureVerified = true;
 
     // 2. Only RtnCode 1 is a completed payment.
     if (body.RtnCode !== '1') {
@@ -77,13 +85,16 @@ export async function POST(request: Request): Promise<Response> {
 
     if (!merchantTradeNo) {
       console.warn('ecpay/callback: missing MerchantTradeNo');
+      recordPaymentFailure('付款回呼缺訂單編號');
       return ecpayResponse('0|missing MerchantTradeNo');
     }
 
     // 3. The order must exist before we can compare amounts.
+    //    The lookup also returns null on a database error, so the record says so.
     const order = await findOrderByTradeNo(merchantTradeNo);
     if (!order) {
       console.warn('ecpay/callback: order not found', { merchantTradeNo });
+      recordPaymentFailure(ORDER_NOT_FOUND_REASON, merchantTradeNo);
       return ecpayResponse('0|order not found');
     }
 
@@ -97,6 +108,7 @@ export async function POST(request: Request): Promise<Response> {
         tradeAmt: body.TradeAmt,
         orderAmount: order.amount_twd,
       });
+      recordPaymentFailure('付款金額不符', merchantTradeNo);
       return ecpayResponse(`0|amount mismatch (TradeAmt=${body.TradeAmt})`);
     }
 
@@ -134,6 +146,7 @@ export async function POST(request: Request): Promise<Response> {
     // A missed re-read can also land here. ECPay retries, and the retry sees the order.
     if (result === 'not_found') {
       console.warn('ecpay/callback: order vanished between lookup and update', { merchantTradeNo });
+      recordPaymentFailure(ORDER_NOT_FOUND_REASON, merchantTradeNo);
       return ecpayResponse('0|order not found');
     }
 
@@ -173,6 +186,9 @@ export async function POST(request: Request): Promise<Response> {
   } catch (err) {
     // Never show ECPay a 500. Log the error and answer in the protocol's shape.
     console.error('ecpay/callback: unexpected error', { merchantTradeNo, err });
+    if (signatureVerified) {
+      recordPaymentFailure('付款回呼發生錯誤', merchantTradeNo);
+    }
     return ecpayResponse('0|internal error');
   }
 }
