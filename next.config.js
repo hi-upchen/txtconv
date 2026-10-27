@@ -9,6 +9,13 @@ const nextConfig = {
   env: {
     BUILD_VERSION: buildVersion,
   },
+  // The article pages read Markdown files from content/articles at request
+  // time. This ships those files with the server functions on Vercel.
+  outputFileTracingIncludes: {
+    '/articles': ['./content/articles/**/*.md'],
+    '/articles/[slug]': ['./content/articles/**/*.md'],
+    '/sitemap.xml': ['./content/articles/**/*.md'],
+  },
 };
 
 module.exports = nextConfig;

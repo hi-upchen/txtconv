@@ -28,3 +28,39 @@ body {
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Article body. The Markdown renderer outputs plain tags, so they get styles here. */
+.article-body {
+  @apply text-gray-700 leading-relaxed space-y-4;
+}
+.article-body h2 {
+  @apply text-2xl font-bold text-gray-800 pt-4;
+}
+.article-body h3 {
+  @apply text-xl font-bold text-gray-800 pt-2;
+}
+.article-body ul {
+  @apply list-disc pl-6 space-y-1;
+}
+.article-body ol {
+  @apply list-decimal pl-6 space-y-1;
+}
+.article-body a {
+  @apply text-primary hover:underline;
+}
+.article-body code {
+  @apply bg-gray-100 rounded px-1 text-sm;
+}
+.article-body pre {
+  @apply bg-gray-100 rounded p-4 overflow-x-auto text-sm;
+}
+.article-body blockquote {
+  @apply border-l-4 border-gray-200 pl-4 text-gray-600;
+}
+.article-body table {
+  @apply w-full text-sm border-collapse;
+}
+.article-body th,
+.article-body td {
+  @apply border border-gray-200 px-3 py-2 text-left;
+}
