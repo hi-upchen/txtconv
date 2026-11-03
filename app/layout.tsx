@@ -9,11 +9,11 @@ export const metadata: Metadata = {
   // 簡體轉繁體: both keywords lead, the free/no-upload promise differentiates,
   // and the brand name sits at the tail (CTR experiment, read out 2026-09-14).
   title: {
-    default: "簡轉繁線上工具｜免費簡體轉繁體，檔案不上傳、瀏覽器內完成｜txtconv",
+    default: "簡轉繁線上工具｜免費簡體轉繁體，免安裝、不上傳｜txtconv",
     template: "%s | txtconv 簡轉繁工具",
   },
   description:
-    "簡轉繁免費線上工具：簡體轉繁體一鍵完成，檔案不上傳、全程在瀏覽器轉換。支援 txt 小說、srt 字幕（剪映/CapCut）、epub 電子書、csv，自動偵測 GBK/Big5 編碼。",
+    "簡轉繁免費線上工具：免安裝，在瀏覽器內把簡體轉繁體，檔案不上傳。支援 txt 小說、srt 字幕、epub 電子書、csv，轉成台灣繁體用語，自動偵測 GBK/Big5 編碼。",
   keywords: [
     "簡轉繁",
     "簡體轉繁體",
@@ -33,16 +33,16 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://txtconv.arpuli.com",
     siteName: "txtconv",
-    title: "簡轉繁線上工具｜免費簡體轉繁體，檔案不上傳、瀏覽器內完成｜txtconv",
+    title: "簡轉繁線上工具｜免費簡體轉繁體，免安裝、不上傳｜txtconv",
     description:
-      "簡轉繁免費線上工具：簡體轉繁體一鍵完成，檔案不上傳、全程在瀏覽器轉換。支援 txt 小說、srt 字幕（剪映/CapCut）、epub 電子書、csv，自動偵測 GBK/Big5 編碼。",
+      "簡轉繁免費線上工具：免安裝，在瀏覽器內把簡體轉繁體，檔案不上傳。支援 txt 小說、srt 字幕、epub 電子書、csv，轉成台灣繁體用語，自動偵測 GBK/Big5 編碼。",
     locale: "zh_TW",
   },
   twitter: {
     card: "summary_large_image",
-    title: "簡轉繁線上工具｜免費簡體轉繁體，檔案不上傳｜txtconv",
+    title: "簡轉繁線上工具｜免費簡體轉繁體，免安裝、不上傳｜txtconv",
     description:
-      "簡轉繁免費線上工具：簡體轉繁體一鍵完成，檔案不上傳、全程在瀏覽器轉換。支援 txt 小說、srt 字幕（剪映/CapCut）、epub 電子書、csv，自動偵測 GBK/Big5 編碼。",
+      "簡轉繁免費線上工具：免安裝，在瀏覽器內把簡體轉繁體，檔案不上傳。支援 txt 小說、srt 字幕、epub 電子書、csv，轉成台灣繁體用語，自動偵測 GBK/Big5 編碼。",
   },
   robots: {
     index: true,
