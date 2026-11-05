@@ -50,4 +50,16 @@ describe('PaywallDialog', () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ currency: 'TWD', value: 899, item_name: 'lifetime', source_path: '/novel' });
   });
+
+  it('explains the rejection with the real free and Pro limits', () => {
+    renderOpen();
+    expect(screen.getByRole('heading', { name: '檔案超過免費版 5MB 上限' })).toBeInTheDocument();
+    expect(screen.getByText(/大小為 9\.00MB，超過免費版的 5MB 上限，所以沒有轉換/)).toBeInTheDocument();
+    expect(screen.getByText(/Pro 終身版可轉換最大 100MB 的檔案/)).toBeInTheDocument();
+  });
+
+  it('says before the click that checkout needs a login', () => {
+    renderOpen();
+    expect(screen.getByText(/購買會綁定你登入的 email。若尚未登入，下一步會先請你登入/)).toBeInTheDocument();
+  });
 });

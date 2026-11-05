@@ -9,6 +9,7 @@ import {
   PRO_PRICE_LABEL,
   REFUND_NOTE,
 } from '@/lib/payment/price';
+import { FREE_MAX_FILE_SIZE_LABEL, PRO_MAX_FILE_SIZE_LABEL } from '@/lib/file-validator';
 import ProBenefits from './ProBenefits';
 
 export interface PaywallDialogProps {
@@ -103,11 +104,12 @@ export default function PaywallDialog({
           id="paywall-dialog-headline"
           className="text-xl sm:text-2xl font-bold text-gray-900 pr-10 mb-3"
         >
-          檔案超過免費版 5MB 上限
+          檔案超過免費版 {FREE_MAX_FILE_SIZE_LABEL} 上限
         </h2>
 
         <p className="text-sm text-gray-600 mb-6 break-words">
-          「{fileName}」大小為 {fileSizeMB}MB。升級 Pro 終身版即可轉換最大 100MB 的檔案。
+          「{fileName}」大小為 {fileSizeMB}MB，超過免費版的 {FREE_MAX_FILE_SIZE_LABEL} 上限，所以沒有轉換。
+          Pro 終身版可轉換最大 {PRO_MAX_FILE_SIZE_LABEL} 的檔案。
         </p>
 
         <ProBenefits
@@ -126,7 +128,10 @@ export default function PaywallDialog({
           升級 Pro 終身版 {PRO_PRICE_LABEL} →
         </Link>
 
-        <p className="mt-3 text-xs text-gray-500 text-center">{REFUND_NOTE}</p>
+        <p className="mt-3 text-xs text-gray-500 text-center">
+          購買會綁定你登入的 email。若尚未登入，下一步會先請你登入。
+        </p>
+        <p className="mt-1 text-xs text-gray-500 text-center">{REFUND_NOTE}</p>
 
         <div className="mt-4 flex flex-col items-center gap-3">
           {/*
