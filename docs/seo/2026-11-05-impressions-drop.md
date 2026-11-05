@@ -37,7 +37,8 @@ The weeks of 10-12 also held an unusual peak (10-14: 3,546 impressions).
 - `http://` redirects with 308 to `https://`. `/srt/` redirects with 308 to `/srt`.
 - `www.txtconv.arpuli.com` does not resolve. There is no www duplicate to index.
 - `/index.html` and unknown paths return 404, not 200.
-- `/articles`: 200 with its own canonical.
+- `/articles`: 200 with its own canonical. It is `noindex, follow` by design while no articles exist.
+- `/checkout` is `noindex, nofollow` by design.
 - Structured data: 4 JSON-LD blocks on the home page. No hreflang tags, and none are needed for one language.
 - Rendered title: 簡轉繁線上工具｜免費簡體轉繁體，免安裝、不上傳｜txtconv.
 - All page URLs in Search Console are the canonical ones. No duplicate URLs appear.
