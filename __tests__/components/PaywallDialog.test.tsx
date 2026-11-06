@@ -62,4 +62,62 @@ describe('PaywallDialog', () => {
     renderOpen();
     expect(screen.getByText(/購買會綁定你登入的 email。若尚未登入，下一步會先請你登入/)).toBeInTheDocument();
   });
+  describe('paywall events', () => {
+    const count = (name: string) => window.dataLayer.filter((e) => e.event === name).length;
+
+    it('reports one paywall_shown on open, not on re-render', () => {
+      const { rerender } = renderOpen();
+      expect(count('paywall_shown')).toBe(1);
+      expect(window.dataLayer.find((e) => e.event === 'paywall_shown')).toMatchObject({
+        source_path: '/novel',
+      });
+      rerender(<PaywallDialog open onClose={() => {}} fileName="novel.txt" fileSizeMB="9.00" />);
+      expect(count('paywall_shown')).toBe(1);
+    });
+
+    it('reports nothing while closed', () => {
+      renderOpen({ open: false });
+      expect(count('paywall_shown')).toBe(0);
+    });
+
+    it('reports paywall_dismissed once for the close button', async () => {
+      const onClose = jest.fn();
+      renderOpen({ onClose });
+      await userEvent.setup().click(screen.getByRole('button', { name: '關閉' }));
+      expect(count('paywall_dismissed')).toBe(1);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports paywall_dismissed once for Escape', async () => {
+      renderOpen();
+      await userEvent.setup().keyboard('{Escape}');
+      expect(count('paywall_dismissed')).toBe(1);
+    });
+
+    it('reports paywall_dismissed once for a backdrop click', async () => {
+      const { container } = renderOpen();
+      await userEvent.setup().click(container.firstElementChild as Element);
+      expect(count('paywall_dismissed')).toBe(1);
+    });
+
+    it('reports paywall_dismissed once for the later link', async () => {
+      renderOpen();
+      await userEvent.setup().click(screen.getByRole('button', { name: '稍後再說' }));
+      expect(count('paywall_dismissed')).toBe(1);
+    });
+
+    it('does not report a dismissal for a click inside the panel', async () => {
+      renderOpen();
+      await userEvent.setup().click(screen.getByRole('dialog'));
+      expect(count('paywall_dismissed')).toBe(0);
+    });
+
+    it('does not report a dismissal for the buy or pricing links', async () => {
+      const user = userEvent.setup();
+      renderOpen();
+      await user.click(screen.getByRole('link', { name: /升級 Pro 終身版/ }));
+      await user.click(screen.getByRole('link', { name: '查看完整方案比較' }));
+      expect(count('paywall_dismissed')).toBe(0);
+    });
+  });
 });

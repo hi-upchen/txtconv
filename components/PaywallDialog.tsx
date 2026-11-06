@@ -1,8 +1,13 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { trackBeginCheckout, trackUpgradeCtaClicked } from '@/lib/analytics';
+import {
+  trackBeginCheckout,
+  trackPaywallDismissed,
+  trackPaywallShown,
+  trackUpgradeCtaClicked,
+} from '@/lib/analytics';
 import {
   CHECKOUT_PATH,
   PRO_LIFETIME_PRICE_TWD,
@@ -42,6 +47,21 @@ export default function PaywallDialog({
 }: PaywallDialogProps) {
   const primaryButtonRef = useRef<HTMLAnchorElement>(null);
 
+  // Every dismiss path (close button, Escape, backdrop, "later" link) goes
+  // through here, so each close reports exactly one paywall_dismissed.
+  // The buy and pricing links do not call it.
+  const dismiss = useCallback(() => {
+    trackPaywallDismissed();
+    onClose();
+  }, [onClose]);
+
+  // Report one paywall_shown each time the dialog opens, not on re-renders.
+  useEffect(() => {
+    if (open) {
+      trackPaywallShown();
+    }
+  }, [open]);
+
   // Move keyboard focus onto the buy button as soon as the dialog appears so
   // keyboard and screen-reader users land inside the dialog rather than
   // staying on the page behind it.
@@ -59,13 +79,13 @@ export default function PaywallDialog({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        dismiss();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
+  }, [open, dismiss]);
 
   if (!open) return null;
 
@@ -77,7 +97,7 @@ export default function PaywallDialog({
       // up and closing it by accident.
       onClick={(event) => {
         if (event.target === event.currentTarget) {
-          onClose();
+          dismiss();
         }
       }}
     >
@@ -93,7 +113,7 @@ export default function PaywallDialog({
       >
         <button
           type="button"
-          onClick={onClose}
+          onClick={dismiss}
           aria-label="關閉"
           className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-black/5 transition-colors"
         >
@@ -148,7 +168,7 @@ export default function PaywallDialog({
           </Link>
           <button
             type="button"
-            onClick={onClose}
+            onClick={dismiss}
             className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
             稍後再說

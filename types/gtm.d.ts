@@ -41,6 +41,18 @@ export interface FileRejectedEvent {
   source_path: string;
 }
 
+export interface PaywallShownEvent {
+  event: 'paywall_shown';
+  /** Page path where the paywall dialog opened (e.g. "/", "/srt") */
+  source_path: string;
+}
+
+export interface PaywallDismissedEvent {
+  event: 'paywall_dismissed';
+  /** Page path where the paywall dialog was closed without acting */
+  source_path: string;
+}
+
 export interface BeginCheckoutEvent {
   event: 'begin_checkout';
   currency: string;
@@ -110,6 +122,8 @@ export type TrackedEvent =
   | FileConversionCompletedEvent
   | FileConversionFailedEvent
   | FileRejectedEvent
+  | PaywallShownEvent
+  | PaywallDismissedEvent
   | BeginCheckoutEvent
   | UpgradeCtaClickedEvent
   | LoginStartedEvent
