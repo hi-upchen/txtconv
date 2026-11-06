@@ -10,6 +10,8 @@ import type {
   FileConversionCompletedEvent,
   FileConversionFailedEvent,
   FileRejectedEvent,
+  PaywallShownEvent,
+  PaywallDismissedEvent,
   BeginCheckoutEvent,
   UpgradeCtaClickedEvent,
   PurchaseEvent,
@@ -165,6 +167,32 @@ export function trackFileRejected(
     file_type: getFileExtension(file.name),
     reject_reason: reason,
     upgrade_available: upgradeAvailable,
+    source_path: window.location.pathname,
+  };
+
+  pushEvent(event);
+}
+
+/**
+ * Track the paywall dialog opening. Fires once per open. Together with
+ * file_rejected and begin_checkout it shows where visitors drop off.
+ */
+export function trackPaywallShown(): void {
+  const event: PaywallShownEvent = {
+    event: 'paywall_shown',
+    source_path: window.location.pathname,
+  };
+
+  pushEvent(event);
+}
+
+/**
+ * Track the paywall dialog closing without a buy or pricing click.
+ * Close button, Escape, backdrop click and the "later" link all count.
+ */
+export function trackPaywallDismissed(): void {
+  const event: PaywallDismissedEvent = {
+    event: 'paywall_dismissed',
     source_path: window.location.pathname,
   };
 
