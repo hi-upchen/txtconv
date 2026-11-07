@@ -83,6 +83,14 @@ export default async function Home() {
               </a>
             </p>
             <p>.xml 資料格式</p>
+            <p>
+              <a
+                href="/traditional-to-simplified"
+                className="hover:text-primary underline underline-offset-2"
+              >
+                繁體轉簡體（反向轉換）
+              </a>
+            </p>
           </div>
 
           {/* Social proof: real third-party coverage only — do not add outlets
