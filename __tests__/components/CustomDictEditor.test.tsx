@@ -39,3 +39,20 @@ describe('CustomDictEditor (guest)', () => {
     expect(screen.queryByRole('button', { name: '寄送登入連結' })).not.toBeInTheDocument();
   });
 });
+
+describe('CustomDictEditor Pro mention', () => {
+  it('shows the mention to guests with the shared limits', () => {
+    render(<CustomDictEditor user={null} profile={null} />);
+    expect(screen.getByTestId('pro-mention-dictionary')).toHaveTextContent(
+      '免費版可存 5 組對照，Pro 終身版 NT$899 可存 10,000 組',
+    );
+  });
+
+  it('hides the mention from lifetime Pro users', () => {
+    const user = { id: 'u1' } as never;
+    const profile = { license_type: 'lifetime' } as never;
+    global.fetch = jest.fn().mockResolvedValue({ json: async () => ({ content: '' }) }) as never;
+    render(<CustomDictEditor user={user} profile={profile} />);
+    expect(screen.queryByTestId('pro-mention-dictionary')).toBeNull();
+  });
+});

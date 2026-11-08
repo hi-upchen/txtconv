@@ -8,13 +8,15 @@ import {
   validateDictionary,
   parseDictionary,
   getDictPairLimit,
+  PRO_DICT_PAIR_LIMIT_LABEL,
   type DictValidationError,
 } from '@/lib/custom-dict';
 import { isPaidUser } from '@/lib/auth';
 import { updateDictCache } from '@/lib/client-converter';
 import { trackUpgradeCtaClicked } from '@/lib/analytics';
-import { CHECKOUT_PATH } from '@/lib/payment/price';
+import { CHECKOUT_PATH, PRO_PRICE_LABEL } from '@/lib/payment/price';
 import LoginDialog from './LoginDialog';
+import ProMention from './ProMention';
 
 interface CustomDictEditorProps {
   user: User | null;
@@ -255,6 +257,13 @@ export default function CustomDictEditor({ user, profile }: CustomDictEditorProp
           <p className="text-sm text-gray-500">
             自訂簡繁對照詞彙，可覆蓋預設轉換結果。每行一組，格式：簡體詞,繁體詞
           </p>
+
+          {/* Quiet Pro offer for anyone not on a paid plan. The dictionary stays usable. */}
+          {!isPaid && (
+            <ProMention location="dictionary">
+              免費版可存 {getDictPairLimit('free')} 組對照，Pro 終身版 {PRO_PRICE_LABEL} 可存 {PRO_DICT_PAIR_LIMIT_LABEL} 組。
+            </ProMention>
+          )}
 
           {/* ─── Guest state (not logged in) ─────────────────────────────── */}
           {!user && (

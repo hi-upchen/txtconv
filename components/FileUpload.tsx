@@ -2,7 +2,11 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { validateFile } from '@/lib/file-validator';
+import {
+  validateFile,
+  FREE_MAX_FILE_SIZE_LABEL,
+  PRO_MAX_FILE_SIZE_LABEL,
+} from '@/lib/file-validator';
 import {
   convertFile as clientConvertFile,
   isEpubFile,
@@ -15,6 +19,8 @@ import {
   trackFileRejected,
 } from '@/lib/analytics';
 import PaywallDialog from '@/components/PaywallDialog';
+import ProMention from '@/components/ProMention';
+import { PRO_PRICE_LABEL } from '@/lib/payment/price';
 import { createClient } from '@/lib/supabase/client';
 import type { LicenseType } from '@/types/user';
 
@@ -556,6 +562,14 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
             </p>
           </div>
         </div>
+        {/* Quiet Pro offer. Batch conversion stays free; only the size limit differs. */}
+        {licenseType === 'free' && (
+          <div className="mt-3 text-center">
+            <ProMention location="batch">
+              可一次選取多個檔案轉換。免費版單檔上限 {FREE_MAX_FILE_SIZE_LABEL}，Pro 終身版 {PRO_PRICE_LABEL} 可轉最大 {PRO_MAX_FILE_SIZE_LABEL} 的檔案。
+            </ProMention>
+          </div>
+        )}
       </section>
 
       {/* File list */}
