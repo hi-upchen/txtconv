@@ -62,10 +62,18 @@ export interface BeginCheckoutEvent {
   source_path: string;
 }
 
+/** Feature areas that show a quiet Pro mention. */
+export type UpgradeCtaLocation = 'batch' | 'dictionary';
+
+/** Every place an upgrade call-to-action can be clicked. */
+export type UpgradeCtaSource = 'file_size_limit' | 'dict_limit' | UpgradeCtaLocation;
+
 export interface UpgradeCtaClickedEvent {
   event: 'upgrade_cta_clicked';
   /** Which limit triggered the CTA the user clicked */
-  cta_source: 'file_size_limit' | 'dict_limit';
+  cta_source: UpgradeCtaSource;
+  /** Set only for the quiet Pro mentions: the feature area clicked */
+  location?: UpgradeCtaLocation;
   source_path: string;
 }
 

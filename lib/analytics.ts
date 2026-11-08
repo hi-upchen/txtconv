@@ -14,6 +14,8 @@ import type {
   PaywallDismissedEvent,
   BeginCheckoutEvent,
   UpgradeCtaClickedEvent,
+  UpgradeCtaLocation,
+  UpgradeCtaSource,
   PurchaseEvent,
   LoginMethod,
   LoginStartedEvent,
@@ -250,17 +252,19 @@ export function trackPurchase(input: {
  *
  * @param ctaSource - Which limit surfaced the CTA
  */
-export function trackUpgradeCtaClicked(
-  ctaSource: 'file_size_limit' | 'dict_limit'
-): void {
+export function trackUpgradeCtaClicked(ctaSource: UpgradeCtaSource): void {
   const event: UpgradeCtaClickedEvent = {
     event: 'upgrade_cta_clicked',
     cta_source: ctaSource,
+    // The quiet mentions name the feature area in `location` too.
+    ...(ctaSource === 'batch' || ctaSource === 'dictionary' ? { location: ctaSource } : {}),
     source_path: window.location.pathname,
   };
 
   pushEvent(event);
 }
+
+export type { UpgradeCtaLocation };
 
 const LOGIN_METHODS: readonly LoginMethod[] = ['google', 'email_code', 'magic_link'];
 
