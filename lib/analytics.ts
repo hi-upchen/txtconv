@@ -11,6 +11,7 @@ import type {
   FileConversionFailedEvent,
   FileRejectedEvent,
   PaywallShownEvent,
+  PartialConversionShownEvent,
   PaywallDismissedEvent,
   BeginCheckoutEvent,
   UpgradeCtaClickedEvent,
@@ -182,6 +183,26 @@ export function trackFileRejected(
 export function trackPaywallShown(): void {
   const event: PaywallShownEvent = {
     event: 'paywall_shown',
+    source_path: window.location.pathname,
+  };
+
+  pushEvent(event);
+}
+
+/**
+ * Track a partial result shown to a free user. The file was over the free
+ * limit, so only the first part was converted. The Pro offer sits next to
+ * that result, so this event is the start of the partial-result funnel.
+ *
+ * @param file - The file the user picked (whole size and extension only)
+ * @param partialBytes - Size in bytes of the converted first part
+ */
+export function trackPartialConversionShown(file: File, partialBytes: number): void {
+  const event: PartialConversionShownEvent = {
+    event: 'partial_conversion_shown',
+    file_size: file.size,
+    file_type: getFileExtension(file.name),
+    partial_bytes: partialBytes,
     source_path: window.location.pathname,
   };
 
