@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
   validateFile,
+  FREE_MAX_FILE_SIZE,
   FREE_MAX_FILE_SIZE_LABEL,
   PRO_MAX_FILE_SIZE_LABEL,
 } from '@/lib/file-validator';
@@ -17,7 +18,9 @@ import {
   trackFileConversionCompleted,
   trackFileConversionFailed,
   trackFileRejected,
+  trackPartialConversionShown,
 } from '@/lib/analytics';
+import { canConvertPartially, cutToLimit, partialFileName } from '@/lib/partial-file';
 import PaywallDialog from '@/components/PaywallDialog';
 import ProMention from '@/components/ProMention';
 import { PRO_PRICE_LABEL } from '@/lib/payment/price';
@@ -81,6 +84,10 @@ export interface UploadFile {
   convertedBlob?: Blob;  // finished output, ready to download (text or binary, e.g. EPUB)
   conversionStartTime?: number;
   inputEncoding?: string;
+  /** True when a free user's oversized file is converted only up to the free limit. */
+  partial?: boolean;
+  /** Size-limit message to show if the partial cut turns out to be impossible. */
+  rejectMessage?: string;
   progressLabel?: string;  // stage-specific progress copy (Traditional Chinese), used for EPUB
 }
 
@@ -200,7 +207,7 @@ function FileRow({
     statusText = 'Waiting...';
     dotColor = 'bg-gray-300';
   } else if (isFinished) {
-    statusText = 'Finished';
+    statusText = store.partial ? `已轉換前 ${FREE_MAX_FILE_SIZE_LABEL}（部分結果）` : 'Finished';
   } else if (isFailed) {
     statusText = 'Failed';
   }
@@ -212,7 +219,7 @@ function FileRow({
 
   return (
     <div
-      className={`w-full bg-white rounded-lg border ${borderClass} p-4 flex items-center justify-between gap-4 shadow-sm h-20 transition-all`}
+      className={`w-full bg-white rounded-lg border ${borderClass} p-4 flex items-center justify-between gap-4 shadow-sm ${store.partial && isFinished ? 'min-h-20' : 'h-20'} transition-all`}
     >
       {/* Left: File info */}
       <div className="flex-1 min-w-0 flex flex-col justify-center">
@@ -220,9 +227,18 @@ function FileRow({
           {store.filename}
         </div>
         {isFinished ? (
-          <div className="text-xs font-medium text-primary flex items-center gap-1.5">
+          <div className="text-xs font-medium text-primary flex items-center gap-1.5 flex-wrap">
             <span className="material-symbols-outlined text-[14px]">check_circle</span>
             {statusText}
+            {store.partial && (
+              <button
+                type="button"
+                onClick={onUpgrade}
+                className="text-primary hover:text-primary-hover font-bold underline underline-offset-2"
+              >
+                升級 Pro 轉換完整檔案（{PRO_PRICE_LABEL}）→
+              </button>
+            )}
           </div>
         ) : isFailed ? (
           <div className="text-xs text-red-500 font-medium flex items-center gap-1.5 flex-wrap">
@@ -294,13 +310,14 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
   // tier's size limit. The name and size are kept separately from the file
   // list so the dialog keeps rendering its copy while it closes.
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [paywallFile, setPaywallFile] = useState<{ name: string; sizeMB: string }>({
+  const [paywallFile, setPaywallFile] = useState<{ name: string; sizeMB: string; partial: boolean }>({
     name: '',
     sizeMB: '0.00',
+    partial: false,
   });
 
-  const openPaywallDialog = useCallback((name: string, sizeBytes: number) => {
-    setPaywallFile({ name, sizeMB: formatSizeMB(sizeBytes) });
+  const openPaywallDialog = useCallback((name: string, sizeBytes: number, partial = false) => {
+    setPaywallFile({ name, sizeMB: formatSizeMB(sizeBytes), partial });
     setPaywallOpen(true);
   }, []);
 
@@ -338,7 +355,35 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
   }, [downloadQueue]);
 
   const convertFile = useCallback(async (uploadFile: UploadFile) => {
-    const { id, file } = uploadFile;
+    const { id, file: pickedFile } = uploadFile;
+    let file = pickedFile;
+
+    // A free user's oversized text file converts only its first part. The cut
+    // reads just the first bytes, so a 100MB file never loads whole into memory.
+    if (uploadFile.partial) {
+      const head = new Uint8Array(await pickedFile.slice(0, FREE_MAX_FILE_SIZE + 1).arrayBuffer());
+      const cut = cutToLimit(head, FREE_MAX_FILE_SIZE);
+      if (!cut) {
+        // No safe cut exists (for example UTF-16). Fall back to the plain rejection.
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === id
+              ? {
+                  ...f,
+                  isUploading: false,
+                  isProcessing: false,
+                  partial: false,
+                  errMessage: f.rejectMessage ?? 'Invalid file',
+                  upgradeAvailable: true,
+                  isRetryable: false,
+                }
+              : f
+          )
+        );
+        return;
+      }
+      file = new File([new Uint8Array(cut.bytes)], pickedFile.name, { type: pickedFile.type });
+    }
 
     // Track conversion started
     trackFileConversionStarted(file);
@@ -397,7 +442,7 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
             type: result.mimeType || 'application/octet-stream',
           })
         : new Blob([result.content], { type: 'text/plain; charset=utf-8' });
-      convertedFileName = result.fileName;
+      convertedFileName = uploadFile.partial ? partialFileName(result.fileName) : result.fileName;
       inputEncoding = result.encoding;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Conversion failed';
@@ -440,6 +485,10 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
       )
     );
 
+    if (uploadFile.partial) {
+      trackPartialConversionShown(pickedFile, file.size);
+    }
+
     // Add to download queue
     setDownloadQueue((prev) => [...prev, { blob: convertedBlob, fileName: convertedFileName }]);
   }, [userId]);
@@ -460,19 +509,26 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
         );
       }
 
+      // A free user's oversized text file is converted up to the free limit
+      // instead of being turned away. Other rejections stay as they were.
+      const partial =
+        validation.reason === 'size_limit_free' && canConvertPartially(file.name);
+
       return {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         file,
         uploadProgress: 0,
         convertProgress: 0,
-        isUploading: validation.valid ? null : false,
+        isUploading: validation.valid || partial ? null : false,
         isProcessing: false,
         downloadLink: null,
         filename: file.name,
         size: file.size,
-        errMessage: validation.valid ? null : validation.error || 'Invalid file',
+        errMessage: validation.valid || partial ? null : validation.error || 'Invalid file',
+        partial,
+        rejectMessage: validation.error,
         isRetryable: false,  // Validation errors are never retryable
-        upgradeAvailable: validation.upgradeAvailable,
+        upgradeAvailable: partial ? undefined : validation.upgradeAvailable,
       };
     });
 
@@ -483,11 +539,14 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
     // such file in a drop matters, and only the first time in a session — a
     // dialog on every subsequent drop would be nagging, and the rejected
     // row keeps its own button for anyone who wants it back.
-    const firstUpgradeable = newFiles.find((f) => f.upgradeAvailable === true);
+    const firstUpgradeable = newFiles.find((f) => f.upgradeAvailable === true && !f.partial);
     if (firstUpgradeable && !paywallDialogAlreadyShown()) {
       markPaywallDialogShown();
       openPaywallDialog(firstUpgradeable.file.name, firstUpgradeable.size);
     }
+
+    // Partial files skip the automatic dialog: it would cover the result and
+    // the row already carries the Pro offer next to it.
 
     // Auto-convert only valid files (client-side, no upload needed)
     newFiles.forEach((uploadFile, index) => {
@@ -581,7 +640,7 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
               store={fileHandler}
               onDownload={() => downloadFile(fileHandler.id)}
               onRetry={() => retryFile(fileHandler.id)}
-              onUpgrade={() => openPaywallDialog(fileHandler.file.name, fileHandler.size)}
+              onUpgrade={() => openPaywallDialog(fileHandler.file.name, fileHandler.size, fileHandler.partial === true)}
             />
           ))}
         </section>
@@ -592,6 +651,7 @@ export default function FileUpload({ licenseType = 'free' }: { licenseType?: Lic
         onClose={closePaywallDialog}
         fileName={paywallFile.name}
         fileSizeMB={paywallFile.sizeMB}
+        partialConverted={paywallFile.partial}
       />
     </div>
   );

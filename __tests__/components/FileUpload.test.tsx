@@ -13,6 +13,26 @@ jest.mock('@/lib/client-converter', () => ({
   isEpubFile: jest.fn((name: string) => name.toLowerCase().endsWith('.epub')),
 }));
 
+// jsdom's Blob has no arrayBuffer() or text(); real browsers do.
+function readBlob<T>(blob: Blob, read: (r: FileReader) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as T);
+    reader.onerror = () => reject(reader.error);
+    read(reader);
+  });
+}
+if (!Blob.prototype.arrayBuffer) {
+  Blob.prototype.arrayBuffer = function (this: Blob) {
+    return readBlob<ArrayBuffer>(this, (r) => r.readAsArrayBuffer(this));
+  };
+}
+if (!Blob.prototype.text) {
+  Blob.prototype.text = function (this: Blob) {
+    return readBlob<string>(this, (r) => r.readAsText(this));
+  };
+}
+
 // Mock fetch for API calls (still needed for auth/profile)
 global.fetch = jest.fn();
 
@@ -222,7 +242,7 @@ describe('FileUpload Component', () => {
 
     render(<FileUpload licenseType="free" />);
 
-    const file = new File(['x'], 'novel.txt', { type: 'text/plain' });
+    const file = new File(['x'], 'novel.epub', { type: 'application/epub+zip' });
     Object.defineProperty(file, 'size', { value: 10 * 1024 * 1024 });
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -245,7 +265,7 @@ describe('FileUpload Component', () => {
   /** Uploads a file whose size exceeds the free tier's 5MB limit. */
   async function dropOversizedFile(
     user: ReturnType<typeof userEvent.setup>,
-    name = 'novel.txt',
+    name = 'novel.epub',
     sizeBytes = 9 * 1024 * 1024
   ) {
     const file = new File(['x'], name, { type: 'text/plain' });
@@ -267,7 +287,7 @@ describe('FileUpload Component', () => {
       screen.getByRole('heading', { name: '檔案超過免費版 5MB 上限' })
     ).toBeInTheDocument();
     // Body copy names the rejected file and its size
-    expect(screen.getByText(/「novel.txt」大小為 9.00MB/)).toBeInTheDocument();
+    expect(screen.getByText(/「novel.epub」大小為 9.00MB/)).toBeInTheDocument();
 
     // The buy button is a same-tab link to our own checkout page
     const buyLink = screen.getByRole('link', { name: /升級 Pro 終身版 NT\$899/ });
@@ -293,7 +313,7 @@ describe('FileUpload Component', () => {
     const user = userEvent.setup();
 
     render(<FileUpload licenseType="free" />);
-    await dropOversizedFile(user, 'first.txt');
+    await dropOversizedFile(user, 'first.epub');
 
     await screen.findByRole('dialog');
     await user.click(screen.getByRole('button', { name: '稍後再說' }));
@@ -302,10 +322,10 @@ describe('FileUpload Component', () => {
     });
 
     // A second oversized file is still rejected, but must not interrupt again
-    await dropOversizedFile(user, 'second.txt');
+    await dropOversizedFile(user, 'second.epub');
 
     await waitFor(() => {
-      expect(screen.getByText('second.txt')).toBeInTheDocument();
+      expect(screen.getByText('second.epub')).toBeInTheDocument();
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -334,7 +354,7 @@ describe('FileUpload Component', () => {
 
     render(<FileUpload licenseType="free" />);
 
-    const file = new File(['x'], 'novel.txt', { type: 'text/plain' });
+    const file = new File(['x'], 'novel.epub', { type: 'application/epub+zip' });
     Object.defineProperty(file, 'size', { value: 9 * 1024 * 1024 });
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -351,10 +371,110 @@ describe('FileUpload Component', () => {
     expect(rejectedEvents[0]).toMatchObject({
       event: 'file_rejected',
       file_size: 9 * 1024 * 1024,
-      file_type: '.txt',
+      file_type: '.epub',
       reject_reason: 'size_limit_free',
       upgrade_available: true,
       source_path: '/',
+    });
+  });
+
+  describe('partial conversion of an oversized text file', () => {
+    const LIMIT = 5 * 1024 * 1024;
+
+    function bigTextFile(name = 'novel.txt') {
+      // 6MB of short lines; the cut must land on a line end under 5MB
+      const line = '这是一行简体中文文字\n';
+      const text = line.repeat(Math.ceil((6 * 1024 * 1024) / 10) );
+      return new File([text], name, { type: 'text/plain' });
+    }
+
+    function mockConvert() {
+      (clientConverter.convertFile as jest.Mock).mockImplementation(async (file: File) => ({
+        content: await file.text(),
+        fileName: file.name,
+        encoding: 'UTF-8',
+      }));
+    }
+
+    it('converts only the first part, labels it and offers Pro', async () => {
+      const user = userEvent.setup();
+      mockConvert();
+      render(<FileUpload licenseType="free" />);
+
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      await user.upload(input, bigTextFile());
+
+      await waitFor(() => {
+        expect(screen.getByText(/已轉換前 5MB（部分結果）/)).toBeInTheDocument();
+      });
+
+      const sent = (clientConverter.convertFile as jest.Mock).mock.calls[0][0] as File;
+      expect(sent.size).toBeLessThanOrEqual(LIMIT);
+      expect(sent.size).toBeGreaterThan(LIMIT - 100);
+      expect((await sent.text()).endsWith('\n')).toBe(true);
+
+      // Download name is labelled
+      expect(screen.getByText('novel_前5MB部分.txt')).toBeInTheDocument();
+
+      // Pro offer next to the result; no automatic dialog over it
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /升級 Pro 轉換完整檔案（NT\$899）/ }));
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog).toHaveTextContent('只轉換了前 5MB');
+      const buyLink = screen.getByRole('link', { name: /升級 Pro 終身版 NT\$899/ });
+      expect(buyLink).toHaveAttribute('href', '/checkout');
+    });
+
+    it('pushes one partial_conversion_shown event and keeps the existing events', async () => {
+      const user = userEvent.setup();
+      mockConvert();
+      render(<FileUpload licenseType="free" />);
+
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      await user.upload(input, bigTextFile());
+      await screen.findByText(/已轉換前 5MB（部分結果）/);
+
+      const events = window.dataLayer.filter((e) => e.event === 'partial_conversion_shown');
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        file_type: '.txt',
+        source_path: '/',
+      });
+      expect((events[0] as { partial_bytes: number }).partial_bytes).toBeLessThanOrEqual(LIMIT);
+      expect(window.dataLayer.filter((e) => e.event === 'file_rejected')).toHaveLength(1);
+      expect(window.dataLayer.filter((e) => e.event === 'file_conversion_completed')).toHaveLength(1);
+    });
+
+    it('does not cut files for Pro users', async () => {
+      const user = userEvent.setup();
+      mockConvert();
+      render(<FileUpload licenseType="lifetime" />);
+
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const file = bigTextFile();
+      await user.upload(input, file);
+
+      await waitFor(() => expect(clientConverter.convertFile).toHaveBeenCalled());
+      const sent = (clientConverter.convertFile as jest.Mock).mock.calls[0][0] as File;
+      expect(sent).toBe(file);
+      expect(screen.queryByText(/部分結果/)).not.toBeInTheDocument();
+      expect(window.dataLayer.filter((e) => e.event === 'partial_conversion_shown')).toHaveLength(0);
+    });
+
+    it('falls back to the rejection when no safe cut exists', async () => {
+      const user = userEvent.setup();
+      mockConvert();
+      render(<FileUpload licenseType="free" />);
+
+      // UTF-16 LE with a byte order mark cannot be cut safely by bytes
+      const bytes = new Uint8Array(6 * 1024 * 1024);
+      bytes[0] = 0xff;
+      bytes[1] = 0xfe;
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      await user.upload(input, new File([bytes], 'wide.txt', { type: 'text/plain' }));
+
+      expect(await screen.findByText(/超過免費版 5MB 上限/)).toBeInTheDocument();
+      expect(clientConverter.convertFile).not.toHaveBeenCalled();
     });
   });
 
@@ -369,7 +489,7 @@ describe('FileUpload Component', () => {
 
     render(<FileUpload licenseType="lifetime" />);
 
-    const file = new File(['x'], 'novel.txt', { type: 'text/plain' });
+    const file = new File(['x'], 'novel.epub', { type: 'application/epub+zip' });
     Object.defineProperty(file, 'size', { value: 10 * 1024 * 1024 });
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;

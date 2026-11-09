@@ -47,6 +47,17 @@ export interface PaywallShownEvent {
   source_path: string;
 }
 
+export interface PartialConversionShownEvent {
+  event: 'partial_conversion_shown';
+  /** Size in bytes of the whole file the user picked */
+  file_size: number;
+  file_type: string;
+  /** Size in bytes of the converted first part */
+  partial_bytes: number;
+  /** Page path where the partial result was shown (e.g. "/", "/srt") */
+  source_path: string;
+}
+
 export interface PaywallDismissedEvent {
   event: 'paywall_dismissed';
   /** Page path where the paywall dialog was closed without acting */
@@ -131,6 +142,7 @@ export type TrackedEvent =
   | FileConversionFailedEvent
   | FileRejectedEvent
   | PaywallShownEvent
+  | PartialConversionShownEvent
   | PaywallDismissedEvent
   | BeginCheckoutEvent
   | UpgradeCtaClickedEvent

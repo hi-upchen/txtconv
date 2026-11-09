@@ -26,6 +26,8 @@ export interface PaywallDialogProps {
   fileName: string;
   /** File size in megabytes, already formatted to two decimals (e.g. "8.42"). */
   fileSizeMB: string;
+  /** True when the first part was converted, so the copy must not say nothing was converted. */
+  partialConverted?: boolean;
 }
 
 /**
@@ -44,6 +46,7 @@ export default function PaywallDialog({
   onClose,
   fileName,
   fileSizeMB,
+  partialConverted = false,
 }: PaywallDialogProps) {
   const primaryButtonRef = useRef<HTMLAnchorElement>(null);
 
@@ -128,8 +131,11 @@ export default function PaywallDialog({
         </h2>
 
         <p className="text-sm text-gray-600 mb-6 break-words">
-          「{fileName}」大小為 {fileSizeMB}MB，超過免費版的 {FREE_MAX_FILE_SIZE_LABEL} 上限，所以沒有轉換。
-          Pro 終身版可轉換最大 {PRO_MAX_FILE_SIZE_LABEL} 的檔案。
+          「{fileName}」大小為 {fileSizeMB}MB，超過免費版的 {FREE_MAX_FILE_SIZE_LABEL} 上限，
+          {partialConverted ? `所以只轉換了前 ${FREE_MAX_FILE_SIZE_LABEL}。` : '所以沒有轉換。'}
+          {partialConverted
+            ? `Pro 終身版可轉換完整檔案，最大 ${PRO_MAX_FILE_SIZE_LABEL}。`
+            : `Pro 終身版可轉換最大 ${PRO_MAX_FILE_SIZE_LABEL} 的檔案。`}
         </p>
 
         <ProBenefits
