@@ -7,12 +7,25 @@ import { readCookie } from '@/lib/auth/browser-cookies';
 import { trackLoginFailed } from '@/lib/analytics';
 
 const HEADING = '改用驗證碼登入';
+const REPORTED_KEY = 'auth_code_error_reported';
 const DESCRIPTION = '輸入 Email 後，我們會寄 6 位數驗證碼給你，直接在這裡輸入即可，不必再點連結。';
+
+function shouldReport(): boolean {
+  try {
+    if (window.sessionStorage.getItem(REPORTED_KEY)) return false;
+    window.sessionStorage.setItem(REPORTED_KEY, '1');
+  } catch {
+    // Storage is blocked. Report once per load.
+  }
+  return true;
+}
 
 /**
  * Shown on the "link expired" page, where an expired or already-used email link lands.
- * Reports the failed login once, then offers the code login instead.
+ * Reports the failed login once per browser tab session, then offers the code login instead.
  *
+ * A sessionStorage flag stops a repeat report when the visitor reloads the page.
+ * If storage is blocked, the page reports once per load instead of failing.
  * The ref stops a second report when React runs the effect twice in development.
  */
 export default function AuthCodeErrorLogin() {
@@ -23,7 +36,7 @@ export default function AuthCodeErrorLogin() {
     if (reported.current) return;
     reported.current = true;
 
-    trackLoginFailed('magic_link', 'link_invalid_or_expired');
+    if (shouldReport()) trackLoginFailed('magic_link', 'link_invalid_or_expired');
     setReturnTo(sanitizeReturnTo(readCookie(LOGIN_RETURN_TO_COOKIE)));
   }, []);
 
