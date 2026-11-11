@@ -33,6 +33,7 @@ describe('AuthCodeErrorLogin', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     window.dataLayer = [];
+    window.sessionStorage.clear();
     document.cookie = 'login_return_to=; Max-Age=0; Path=/';
     mockSignInWithOtp.mockResolvedValue({ error: null });
   });
@@ -42,6 +43,39 @@ describe('AuthCodeErrorLogin', () => {
     expect(pushedEvents()).toEqual([
       { event: 'login_failed', method: 'magic_link', reason: 'link_invalid_or_expired' },
     ]);
+  });
+
+  it('does not report again when the page is reloaded in the same tab', () => {
+    const first = render(<AuthCodeErrorLogin />);
+    first.unmount();
+    render(<AuthCodeErrorLogin />);
+    expect(pushedEvents()).toHaveLength(1);
+  });
+
+  it('reads the return-to cookie on every load, including a reload', async () => {
+    document.cookie = 'login_return_to=%2Fsrt; Path=/';
+    const user = userEvent.setup();
+    render(<AuthCodeErrorLogin />).unmount();
+    render(<AuthCodeErrorLogin />);
+    await user.type(screen.getByLabelText('Email'), 'me@example.com');
+    await user.click(screen.getByRole('button', { name: '寄送驗證碼' }));
+    expect(readCookie('login_return_to')).toBe('/srt');
+  });
+
+  it('reports once per load and still renders when sessionStorage throws', () => {
+    const getSpy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    try {
+      const first = render(<AuthCodeErrorLogin />);
+      expect(pushedEvents()).toHaveLength(1);
+      expect(screen.getByRole('heading', { name: '改用驗證碼登入' })).toBeInTheDocument();
+      first.unmount();
+      render(<AuthCodeErrorLogin />);
+      expect(pushedEvents()).toHaveLength(2);
+    } finally {
+      getSpy.mockRestore();
+    }
   });
 
   it('shows the login panel with the retry heading', () => {
